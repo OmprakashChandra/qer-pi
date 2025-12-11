@@ -20,3 +20,6 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml.DS_Store
+
+# macOS Finder metadata
+.DS_Store
