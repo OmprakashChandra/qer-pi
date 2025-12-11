@@ -1,6 +1,12 @@
 function model = noisemodel(noisetype, param, dim)
     %function to generate different noise models. For now only global symmetric noise is supported.
     %TODO add i) Amplitude damping, ii) Local depolarising noise
+    %Inputs:
+    % noisetype : string specifying the noise model type.
+    % param     : parameter specifying the strength of the noise.
+    % dim       : dimension of the Dicke subspace which will be N+1. Where N is the number of qubits.
+    %Outputs: 
+    % model     : cell array of Kraus operators representing the noise model.
     switch noisetype
         case "globalsymmetric"
             model = globalsymmetric(param, dim); 
