@@ -6,57 +6,6 @@ classdef project2
     %    which in our case is the Kraus operators in the Dicke subspace.
     % 4. Considering an errored GPG sequence and then studying the pulse sequence and 
     %    infidelities to reach the target state.
-    
-    methods (Static)
-        function [logical_0, logical_1] = computeCodewordsInSymmetricSubspace(b, g)
-            % COMPUTECODEWORDSINSYMMETRICSUBSPACE Directly computes the logical-0
-            % and logical-1 codewords in the maximum angular momentum (symmetric)
-            % subspace.
-            %
-            % Inputs:
-            %   b - Parameter controlling the number of qubits and excitations.
-            %   g - Parameter affecting code construction.
-            %
-            % Outputs:
-            %   logical_0 - Logical-0 codeword in the symmetric subspace.
-            %   logical_1 - Logical-1 codeword in the symmetric subspace.
-            
-            % Total number of qubits
-            N = 2 * b + g;
-            
-            % Define the relevant symmetric basis states
-            D_0         = project2.symmetric_basis_state(N, 0);         % |J, m = -J>
-            D_2b        = project2.symmetric_basis_state(N, 2 * b);       % |J, m = 2b - J>
-            D_g         = project2.symmetric_basis_state(N, g);           % |J, m = g - J>
-            D_2b_plus_g = project2.symmetric_basis_state(N, 2 * b + g);     % |J, m = J>
-            
-            % Construct the logical-0 and logical-1 codewords
-            logical_0 = (sqrt(2 * b - g) * D_0 + sqrt(2 * b + g) * D_2b) / sqrt(4 * b);
-            logical_1 = (sqrt(2 * b - g) * D_2b_plus_g + sqrt(2 * b + g) * D_g) / sqrt(4 * b);
-            
-            % Normalize the codewords
-            logical_0 = logical_0 / norm(logical_0);
-            logical_1 = logical_1 / norm(logical_1);
-        end
-    
-        function state = symmetric_basis_state(N, m)
-            % SYMMETRIC_BASIS_STATE Computes a symmetric basis state for given parameters.
-            % Inputs:
-            %   N - Total number of qubits.
-            %   m - Parameter defining the basis state.
-            % Output:
-            %   state - A column vector representing the symmetric basis state.
-            
-            state = zeros(N + 1, 1);
-            index = m + 1;  % MATLAB indices start at 1
-            if index >= 1 && index <= (N + 1)
-                state(index) = 1;
-            else
-                error('Index out of range for symmetric basis state.');
-            end
-        end
-    end 
-        
     methods (Static)
         function [fid_no, Xo1, Xo2] = Optimize_fid_lifted_Gopi_version(zero_l, one_l, rho_l, E, enc_flag)
             % OPTIMIZE_FID_LIFTED_GOPI_VERSION Implements the lifted SDP recovery
