@@ -16,10 +16,10 @@ classdef code
             N = 2 * b + g; %total number of physical qubits
             
             % Define the relevant symmetric basis states
-            D_0         = codes.symmetric_basis_state(N, 0);         % |J, m = -J>
-            D_2b        = codes.symmetric_basis_state(N, 2 * b);       % |J, m = 2b - J>
-            D_g         = codes.symmetric_basis_state(N, g);           % |J, m = g - J>
-            D_2b_plus_g = codes.symmetric_basis_state(N, 2 * b + g);     % |J, m = J>
+            D_0         = code.symmetric_basis_state(N, 0);         % |J, m = -J>
+            D_2b        = code.symmetric_basis_state(N, 2 * b);       % |J, m = 2b - J>
+            D_g         = code.symmetric_basis_state(N, g);           % |J, m = g - J>
+            D_2b_plus_g = code.symmetric_basis_state(N, 2 * b + g);     % |J, m = J>
             
             % Construct the logical-0 and logical-1 codewords
             logical_0 = (sqrt(2 * b - g) * D_0 + sqrt(2 * b + g) * D_2b) / sqrt(4 * b);
@@ -46,9 +46,9 @@ classdef code
             %initialize logical codewords
             logical0 = zeros(dim, 1);
             %compute coefficients gamma(b,g,m,k)
-            gamma_vec = codes.bgm_gamma_vectors(b,g,m); 
+            gamma_vec = code.bgm_gamma_vectors(b,g,m); 
             %coefficients in the denominator
-            norm_den = 2^m* sqrt(codes.double_factorial(2*m-1));
+            norm_den = 2^m* sqrt(code.double_factorial(2*m-1));
 
             %fill in the amplitudes
             for k = 0:m

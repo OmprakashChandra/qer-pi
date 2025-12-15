@@ -35,6 +35,7 @@ function [fid_no, Xo1, Xo2] = optimisation(zero_l, one_l, rho_l, E, enc_flag)
            zero_l*one_l'  * rho_l(1,2) + ...
            one_l*zero_l'  * rho_l(2,1) + ...
            one_l*one_l'   * rho_l(2,2));
+    rho = rho/norm(rho); 
     
     K = E; % Kraus operators. 
     
