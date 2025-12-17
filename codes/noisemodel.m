@@ -1,6 +1,6 @@
 function model = noisemodel(noisetype, param, dim)
     %function to generate different noise models. For now only global symmetric noise is supported.
-    %TODO add i) Amplitude damping, ii) Local depolarising noise
+    %TODO add  i) Local depolarising noise
     %Inputs:
     % noisetype : string specifying the noise model type.
     % param     : parameter specifying the strength of the noise.
@@ -14,6 +14,8 @@ function model = noisemodel(noisetype, param, dim)
             model = tracepreserving(param, dim);
         case "ampdamp"    
             model = ampdamp(param, dim);
+        case "collectdeph"
+            model = collective_dephasing(param, dim);    
         otherwise
             error('Unsupported noise model type. The noise models supported at the moment are: "globalsymmetric", "tracepreserving" and "ampdamp".');   
     end  
@@ -105,5 +107,52 @@ function model = noisemodel(noisetype, param, dim)
             K{ell+1} = A;
         end
     end 
+
+    function K = collective_dephasing(param, dim)
+
+        if dim < 1 || floor(dim) ~= dim
+            error('dim must be a positive integer.');
+        end
+
+        N = dim - 1;
+        J = N / 2;
+
+        if J > 0
+            maxParam = 1 / (2 * J * (J + 1));
+            if param < 0 || param > maxParam
+                error('param must be in [0, 1/(2*J*(J+1))] = [0, %.3g] for N = %d.', maxParam, N);
+            end
+        else
+            if param ~= 0
+                error('For dim = 1 (N = 0), param must be 0.');
+            end
+        end
+
+        Sz = zeros(dim);
+        for k = 0:N
+            m = k - J;
+            Sz(k+1, k+1) = m;
+        end
+
+        Sm = zeros(dim);
+        for k = 1:N
+            amp = sqrt(k * (N - k + 1));
+            Sm(k, k+1) = amp;
+        end
+
+        Sp = Sm';
+
+        H = Sz^2 + Sp*Sm + Sm*Sp;
+        I = eye(dim);
+
+        K0 = sqrtm(I - param * H);
+        K1 = sqrt(param) * Sz;
+        K2 = sqrt(param) * Sm;
+        K3 = sqrt(param) * Sp;
+
+        K = {K0, K1, K2, K3};
+
+    end 
+
 
 end 
