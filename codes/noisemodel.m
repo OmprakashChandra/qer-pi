@@ -15,7 +15,9 @@ function model = noisemodel(noisetype, param, dim)
         case "ampdamp"    
             model = ampdamp(param, dim);
         case "collectdeph"
-            model = collective_dephasing(param, dim);    
+            model = collective_dephasing(param, dim);  
+        case "collectdeph_new"
+            model = collective_dephasing_new(param, dim);      
         otherwise
             error('Unsupported noise model type. The noise models supported at the moment are: "globalsymmetric", "tracepreserving" and "ampdamp".');   
     end  
@@ -153,6 +155,38 @@ function model = noisemodel(noisetype, param, dim)
         K = {K0, K1, K2, K3};
 
     end 
+
+    function K = collective_dephasing_new(param, dim)
+
+        N = dim - 1;
+        J = N / 2;
+
+        if param < 0 || param > 1/(2 * J * (J + 1))
+            error('param must be in [0, 1/(2*J*(J+1))] for N = %d.', N);
+        end
+
+        Jz = zeros(dim);
+        for k = 0:N
+            m = k - J;
+            Jz(k+1, k+1) = m;
+        end
+
+        Jp = zeros(dim);
+        for k = 0:N-1
+            amp = sqrt((k+1) * (N - k));
+            Jp(k+2, k+1) = amp;
+        end
+        Jm = Jp';
+
+        K1 = sqrt(param)      * Jp;
+        K2 = sqrt(param)      * Jm;
+        K3 = sqrt(2 * param)  * Jz;
+        K4 = sqrt(1 - 2*param*J*(J+1)) * eye(dim);
+
+        K = {K1, K2, K3, K4};
+
+    end 
+
 
 
 end 
