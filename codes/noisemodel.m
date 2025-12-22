@@ -12,12 +12,12 @@ function model = noisemodel(noisetype, param, dim)
             model = globalsymmetric(param, dim); 
         case "tracepreserving"
             model = tracepreserving(param, dim);
-        case "ampdamp"    
-            model = ampdamp(param, dim);
         case "collectdeph"
             model = collective_dephasing(param, dim);  
         case "collectdeph_new"
-            model = collective_dephasing_new(param, dim);      
+            model = collective_dephasing_new(param, dim);    
+        case "localampdamp"
+            model = local_ampdamp(param, dim);      
         otherwise
             error('Unsupported noise model type. The noise models supported at the moment are: "globalsymmetric", "tracepreserving" and "ampdamp".');   
     end  
@@ -72,43 +72,12 @@ function model = noisemodel(noisetype, param, dim)
                 cache_s = s;    
             end 
             p = param; % noise parameter
-            E0 = sqrt(1 - p) * eye(cache_dim);
-            scale = sqrt(p/(cache_s * (cache_s + 1)));
-            E1 = scale * cache_Ex;
-            E2 = scale * cache_Ey;
-            E3 = scale * cache_Ez;
+            E0 = sqrt(1 - p * cache_s *(cache_s + 1)) * eye(cache_dim);
+            E1 = sqrt(p) * cache_Ex;
+            E2 = sqrt(p) * cache_Ey;
+            E3 = sqrt(p) * cache_Ez;
             model = {E0, E1, E2, E3};
-        end
-        
-    function K = ampdamp(param, dim)
-
-        if dim < 1 || floor(dim) ~= dim
-            error('dim must be a positive integer.');
-        end
-        if param < 0 || param > 1
-            error('param must be in [0,1].');
-        end
-
-        N = dim - 1;
-        K = cell(N+1, 1);
-
-        sqrt_param     = sqrt(param);
-        sqrt_one_minus = sqrt(1 - param);
-
-        for ell = 0:N
-            A = zeros(dim);
-            for s = 0:N
-                if s >= ell
-                    r   = s - ell;
-                    logC = gammaln(s+1) - gammaln(ell+1) - gammaln(s-ell+1); 
-                    %amp = sqrt(nchoosek(s, ell)) * (sqrt_param^ell) * (sqrt_one_minus^(s - ell));
-                    amp  = exp(0.5*logC) * (sqrt_param^ell) * (sqrt_one_minus^(s - ell));
-                    A(r+1, s+1) = amp;
-                end
-            end
-            K{ell+1} = A;
-        end
-    end 
+        end 
 
     function K = collective_dephasing(param, dim)
 
@@ -187,6 +156,38 @@ function model = noisemodel(noisetype, param, dim)
 
     end 
 
+    function Kraus = local_ampdamp(param, dim)
+        gamma = param; 
+        % Generate the Kraus operators for local amplitude damping noise on N qubits.
+        if ~(isscalar(dim) && dim == round(dim) && dim >= 2)
+            error('dim must be an integer >= 2 (and equal to 2^N).');
+        end
+        if ~(isscalar(gamma) && isreal(gamma) && gamma >= 0 && gamma <= 1)
+            error('gamma must be a real scalar in [0,1].');
+        end
 
+        N = round(log2(dim));
+        if 2^N ~= dim
+            error('dim must be exactly a power of 2 (dim = 2^N).');
+        end
 
-end 
+        % ---- single-qubit amplitude damping Kraus ops ----
+        E0 = [1 0; 0 sqrt(1-gamma)];
+        E1 = [0 sqrt(gamma); 0 0];
+        E  = {E0, E1};  % E{1}=E0, E{2}=E1
+
+        % ---- build N-qubit Kraus ops ----
+        numK = 2^N;
+        Kraus = cell(1, numK);
+
+        for s = 0:(numK-1)
+            bits = dec2bin(s, N) - '0'; % length-N, leftmost bit is MSB
+            K = 1;
+            for q = 1:N
+                K = kron(K, E{bits(q)+1});
+            end
+            Kraus{s+1} = K;
+        end
+    end
+end
+
