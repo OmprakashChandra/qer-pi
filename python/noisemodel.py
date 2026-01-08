@@ -33,6 +33,21 @@ def noisemodel(noise_type: str,  num_qubits: int, gamma: float, dt: float):
 
     return kraus 
 
+def global_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float): 
+    """ Generates global symmetric depolarizing channel in the (N+1)-dimensional Dicke space """
+    
+    system = Dicke(num_qubits)
+    system.collective_emission = gamma # global incoherent emission
+    system.collective_pumping = gamma # global incoherent pumping
+    system.collective_dephasing = gamma # global dephasing
+    L = system.liouvillian() 
+    d_out = d_in = int(np.sqrt(L.shape[0]))  # d_out and d_in will be used to generate kraus operators from choi of the channel
+    E = (L * dt).expm()    # E = exp(L dt)
+    choi = qutip.to_choi (E) # convert superoperator E to Choi matrix
+    Ks = _kraus_from_choi (choi, d_out, d_in)
+
+    return Ks
+
 
 def local_symmetric_depolarizing (num_qubits :int, gamma: float, dt: float ): 
     """ Generates local symmetric depolarizing channel """ 
@@ -42,8 +57,8 @@ def local_symmetric_depolarizing (num_qubits :int, gamma: float, dt: float ):
     system.pumping = gamma  # local incoherent pumping
     system.dephasing = gamma # local dephasing
     L = system.liouvillian()
-    d_out = d_in = int(np.sqrt(L.shape[0]))  # drho/dt = L rho        
-    E = (L * dt).expm()       # E = exp(L dt)
+    d_out = d_in = int(np.sqrt(L.shape[0])) # d_out and d_in will be used to generate kraus operators from choi of the channel     
+    E = (L * dt).expm()   # E = exp(L dt)
     choi = qutip.to_choi(E) # convert superoperator E to Choi matrix
 
     Ks = _kraus_from_choi (choi, d_out, d_in )
@@ -51,7 +66,8 @@ def local_symmetric_depolarizing (num_qubits :int, gamma: float, dt: float ):
     return Ks       
 
 def _kraus_from_choi (choi: qutip.Qobj, d_out: int, d_in: int) -> list[qutip.Qobj]: 
-    """ converts a choi matrix to a list of kraus operators upto some tolerance """
+    """ converts a choi matrix to a list of kraus operators upto some tolerance.
+     The kraus operators will be of dimension:(d_out x d_in). """
     tol = 1e-8
     choi = (choi + choi.dag())/2 # ensuring hermiticity
     w, v = np.linalg.eigh(choi.full())
