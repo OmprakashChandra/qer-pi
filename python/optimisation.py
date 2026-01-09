@@ -4,7 +4,7 @@ from qutip.piqs.piqs import Dicke
 import cvxpy as cp
 from typing import Union, Optional
 
-def optimize(logical0: qutip.Qobj, logical1: qutip.Qobj, kraus : list[qutip.Qobj], solver: Union[str, object]):
+def optimise(logical0: qutip.Qobj, logical1: qutip.Qobj, kraus : list[qutip.Qobj], solver: Union[str, object]):
 
     if isinstance(solver, str):
         solver_name = solver.upper()
