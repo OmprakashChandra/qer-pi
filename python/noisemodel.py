@@ -1,87 +1,123 @@
 import numpy as np
-import qutip 
-from qutip.piqs.piqs import Dicke
-from typing import List
+import qutip
+from qutip.piqs.piqs import*
+from qutip import*
+from typing import List, Union
 
-def noisemodel(noise_type: str,  num_qubits: int, gamma: float, dt: float): 
-    """ Function to generate a set of Kraus operators or Choi matrix representing 
-    a quantum noise channel.
-    
+
+def noisemodel(
+    noise_type: str,
+    num_qubits: int,
+    gamma: float,
+    dt: float,
+    return_rep: str = "kraus",  # "kraus" | "choi" | "super"
+):
+    """
+    Generate a quantum noise channel in PIQS and return either Kraus operators,
+    the Choi matrix, or the superoperator exp(L dt).
+
     Parameters
     ----------
-    noise_type : str 
-        Type of noise channel. Supported types: 'global symmetric depolarizing', 'local symmetric depolarizing'. 
-    num_qubits : int 
-        Number of qubits describing the system. 
-    gamma : float 
+    noise_type : str
+        Supported: 'global symmetric depolarizing', 'local symmetric depolarizing'
+    num_qubits : int
+        Number of qubits.
+    gamma : float
         Noise rate parameter.
     dt : float
-        Time step for the noise channel.
+        Time step.
+    return_rep : str
+        'kraus' -> list of Kraus operators (slow: Choi eigen-decomposition)
+        'choi'  -> Choi matrix (fast)
+        'super' -> superoperator exp(L dt)
 
     Returns
     -------
-    Kraus operators or Choi matrix representing the noise channel.        
+    If return_rep == 'kraus': list[qutip.Qobj]
+    If return_rep == 'choi' : qutip.Qobj
+    If return_rep == 'super': qutip.Qobj
     """
-    
-    if noise_type == 'global symmetric depolarizing':  
-        kraus = global_symmetric_depolarizing (num_qubits,gamma, dt)
-        
-    elif noise_type == 'local symmetric depolarizing':
-        kraus = local_symmetric_depolarizing (num_qubits, gamma, dt)
-    else : 
-        raise ValueError(f" Unsupported noise type: {noise_type}. Supported types are 'global symmetric depolarizing , 'local symmetric depolarizing' ")   
+    noise_type = noise_type.lower().strip()
+    return_rep = return_rep.lower().strip()
 
-    return kraus 
+    if noise_type == "global symmetric depolarizing":
+        return _global_symmetric_depolarizing(num_qubits, gamma, dt, return_rep)
 
-def global_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float): 
-    """ Generates global symmetric depolarizing channel in the (N+1)-dimensional Dicke space """
-    
+    if noise_type == "local symmetric depolarizing":
+        return _local_symmetric_depolarizing(num_qubits, gamma, dt, return_rep)
+
+    raise ValueError(
+        "Unsupported noise type. Supported types: "
+        "'global symmetric depolarizing', 'local symmetric depolarizing'."
+    )
+
+
+def _global_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float, return_rep: str):
+    """Global symmetric depolarizing-like noise using PIQS collective rates."""
     system = Dicke(num_qubits)
-    system.collective_emission = gamma # global incoherent emission
-    system.collective_pumping = gamma # global incoherent pumping
-    system.collective_dephasing = gamma # global dephasing
-    L = system.liouvillian() 
-    d_out = d_in = int(np.sqrt(L.shape[0]))  # d_out and d_in will be used to generate kraus operators from choi of the channel
-    E = (L * dt).expm()    # E = exp(L dt)
-    choi = qutip.to_choi (E) # convert superoperator E to Choi matrix
-    Ks = _kraus_from_choi (choi, d_out, d_in)
+    system.collective_emission  = gamma
+    system.collective_pumping   = gamma
+    system.collective_dephasing = gamma
+
+    L = system.liouvillian()
+    E = (L * dt).expm()  # superoperator for the CPTP map
+
+    if return_rep == "super":
+        return E
+
+    choi = to_choi(E)
+
+    if return_rep == "choi":
+        return choi
+
+    if return_rep == "kraus":
+        d = int(np.sqrt(L.shape[0]))  # since L is d^2 x d^2
+        return _kraus_from_choi(choi, d_out=d, d_in=d)
+
+    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+
+
+def _local_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float, return_rep: str):
+    """Local symmetric depolarizing-like noise using PIQS local rates."""
+    system = Dicke(num_qubits)
+    system.emission  = gamma
+    system.pumping   = gamma
+    system.dephasing = gamma
+
+    L = system.liouvillian()
+    E = (L * dt).expm()
+
+    if return_rep == "super":
+        return E
+
+    choi = to_choi(E)
+
+    if return_rep == "choi":
+        return choi
+
+    if return_rep == "kraus":
+        d = int(np.sqrt(L.shape[0]))
+        return _kraus_from_choi(choi, d_out=d, d_in=d)
+
+    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+
+
+def _kraus_from_choi(choi: qutip.Qobj, d_out: int, d_in: int, tol: float = 1e-8) -> List[qutip.Qobj]:
+    """
+    Convert a Choi matrix to a list of Kraus operators using eigen-decomposition.
+    This is the slow step for large dimensions.
+
+    Kraus operators returned have shape (d_out x d_in).
+    """
+    choi = (choi + choi.dag()) / 2  # enforce Hermiticity
+    w, v = np.linalg.eigh(choi.full())
+
+    Ks: List[qutip.Qobj] = []
+    for k in range(len(w)):
+        if w[k] <= tol:
+            continue
+        vec = np.sqrt(w[k]) * v[:, k]
+        Kmat = vec.reshape((d_out, d_in), order="F")  # column-stacking
+        Ks.append(qutip.Qobj(Kmat, dims=[[d_out], [d_in]]))
 
     return Ks
-
-
-def local_symmetric_depolarizing (num_qubits :int, gamma: float, dt: float ): 
-    """ Generates local symmetric depolarizing channel """ 
-
-    system = Dicke(num_qubits)
-    system.emission = gamma  # local incoherent emission
-    system.pumping = gamma  # local incoherent pumping
-    system.dephasing = gamma # local dephasing
-    L = system.liouvillian()
-    d_out = d_in = int(np.sqrt(L.shape[0])) # d_out and d_in will be used to generate kraus operators from choi of the channel     
-    E = (L * dt).expm()   # E = exp(L dt)
-    choi = qutip.to_choi(E) # convert superoperator E to Choi matrix
-
-    Ks = _kraus_from_choi (choi, d_out, d_in )
-    
-    return Ks       
-
-def _kraus_from_choi (choi: qutip.Qobj, d_out: int, d_in: int) -> list[qutip.Qobj]: 
-    """ converts a choi matrix to a list of kraus operators upto some tolerance.
-     The kraus operators will be of dimension:(d_out x d_in). """
-    tol = 1e-8
-    choi = (choi + choi.dag())/2 # ensuring hermiticity
-    w, v = np.linalg.eigh(choi.full())
-    w = np.where( w > tol, w, 0.0)
-    Ks = []
-    for k in range(len(w)): 
-        if w[k] <= 0: 
-            continue
-        vec = np.sqrt(w[k])*v[:,k]
-        Kmat = vec.reshape((d_out, d_in), order = 'F') #column stacking
-        Ks.append(qutip.Qobj(Kmat, dims = [[d_out],[d_in]]))
-    return Ks          
-
-
-               
-
-
