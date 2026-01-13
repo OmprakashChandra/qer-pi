@@ -125,4 +125,4 @@ def optimise(
     if prob.status not in ("optimal", "optimal_inaccurate"):
         raise RuntimeError(f"SDP did not solve to optimality. Status: {prob.status}")
 
-    return float(prob.value), C
+    return float(prob.value)
