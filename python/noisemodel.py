@@ -102,7 +102,7 @@ def _local_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float, retu
     raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
 
 
-def _kraus_from_choi(choi: qutip.Qobj, d_out: int, d_in: int, tol: float = 1e-8) -> List[qutip.Qobj]:
+def _kraus_from_choi(choi: qutip.Qobj, d_out: int, d_in: int, tol: float = 1e-15) -> List[qutip.Qobj]:
     """
     Convert a Choi matrix to a list of Kraus operators using eigen-decomposition.
     This is the slow step for large dimensions.

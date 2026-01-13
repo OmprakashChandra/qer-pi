@@ -126,3 +126,40 @@ def optimise(
         raise RuntimeError(f"SDP did not solve to optimality. Status: {prob.status}")
 
     return float(prob.value)
+
+
+# entanglement fidelity without optimisation
+import numpy as np
+import qutip as qt
+
+def no_recovery(rho, noise):
+    """
+    Entanglement fidelity with NO recovery.
+
+    If noise is:
+      - list / tuple of Qobj  -> interpreted as Kraus operators {E_k}
+      - Qobj                 -> interpreted as Choi matrix J (d^2 x d^2)
+
+    Choi convention:
+      J = (I ⊗ E)(|Ω⟩⟨Ω|),  |Ω⟩ = Σ_i |i⟩⊗|i⟩  (unnormalized)
+
+    Returns:
+      float entanglement fidelity
+    """
+
+    # --- Kraus branch ---
+    if isinstance(noise, (list, tuple)):
+        Fe = 0.0
+        for Ek in noise:
+            tk = (rho * Ek).tr()          # Tr(rho E_k)
+            Fe += abs(tk) ** 2
+        return float(np.real_if_close(Fe))
+
+    # --- Choi branch ---
+    J = noise
+    rhoT = qt.Qobj(rho.full().T, dims=rho.dims)
+    X = qt.tensor(rhoT, rho)              # (rho^T ⊗ rho)
+
+    # multiply ignoring Qobj dims bookkeeping
+    Fe = (J.data @ X.data).trace()
+    return float(np.real_if_close(Fe))
