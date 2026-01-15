@@ -265,10 +265,14 @@ def gross_13_kets_in_top_block(phi: float = 0.0) -> Tuple[np.ndarray, np.ndarray
     c7 = -math.sqrt(273) / 28
     c8 = -math.sqrt(3003) / 84
 
-    basis1 = np.zeros(dim, dtype=complex); basis1[13] = 1.0
-    basis2 = np.zeros(dim, dtype=complex); basis2[9]  = 1.0
-    basis3 = np.zeros(dim, dtype=complex); basis3[5]  = 1.0
-    basis4 = np.zeros(dim, dtype=complex); basis4[1]  = 1.0
+    basis1 = np.zeros(dim, dtype=complex); 
+    basis1[13] = 1.0
+    basis2 = np.zeros(dim, dtype=complex); 
+    basis2[9]  = 1.0
+    basis3 = np.zeros(dim, dtype=complex); 
+    basis3[5]  = 1.0
+    basis4 = np.zeros(dim, dtype=complex); 
+    basis4[1]  = 1.0
 
     state1 = c1*basis1 + c2*basis2 + c3*basis3 + c4*basis4
     state2 = c5*basis1 + c6*basis2 + c7*basis3 + c8*basis4
