@@ -7,6 +7,7 @@ from __future__ import annotations
 import math
 import numpy as np
 from typing import Tuple, List
+import qutip
 
 
 def piqs_block_dims(N: int) -> List[int]:
@@ -97,6 +98,9 @@ def symmetric_code_to_piqs_reduced(
     Generic embedding for any code defined in the top (fully symmetric) block.
     Returns (rho, l0, l1) either as qutip.Qobj or raw numpy arrays.
     """
+    ket0_top = ket0_top.full().ravel() if isinstance(ket0_top, qutip.Qobj) else ket0_top
+    ket1_top = ket1_top.full().ravel() if isinstance(ket1_top, qutip.Qobj) else ket1_top
+    
     ket0_top = np.asarray(ket0_top, dtype=complex).reshape(-1)
     ket1_top = np.asarray(ket1_top, dtype=complex).reshape(-1)
     if ket0_top.size != N + 1 or ket1_top.size != N + 1:
@@ -247,12 +251,18 @@ def bgmcode_piqs(b: int, g: int, m: int, *, return_qutip: bool = True):
 # Gross 13-qubit code (top block dim 14, reduced dim 56)
 # ============================================================
 
+import numpy as np
+import math
+import qutip
+from typing import Tuple
+
 def gross_13_kets_in_top_block(phi: float = 0.0) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    Gross code for N=13 qubits in top block (dim 14).
-    Returns (ket0_top, ket1_top, N=13).
+    Gross code for N=13 qubits in top Dicke block (dim 14), fully in QuTiP objects.
+    Returns (ket0_top_numpy, ket1_top_numpy, N).
     """
     N = 13
+    j = N / 2
     dim = N + 1
 
     c1 = math.sqrt(910) / 56
@@ -265,28 +275,39 @@ def gross_13_kets_in_top_block(phi: float = 0.0) -> Tuple[np.ndarray, np.ndarray
     c7 = -math.sqrt(273) / 28
     c8 = -math.sqrt(3003) / 84
 
-    basis1 = np.zeros(dim, dtype=complex); 
-    basis1[13] = 1.0
-    basis2 = np.zeros(dim, dtype=complex); 
-    basis2[9]  = 1.0
-    basis3 = np.zeros(dim, dtype=complex); 
-    basis3[5]  = 1.0
-    basis4 = np.zeros(dim, dtype=complex); 
-    basis4[1]  = 1.0
+    # QuTiP spin basis ordering: m = j, j-1, ..., -j  (descending)
+    # index = j - m
+    def ket_jm(m: float) -> qutip.Qobj:
+        idx = int(round(j - m))  # 0-based index in QuTiP ordering
+        return qutip.basis(dim, idx)
 
-    state1 = c1*basis1 + c2*basis2 + c3*basis3 + c4*basis4
-    state2 = c5*basis1 + c6*basis2 + c7*basis3 + c8*basis4
+    # These m values match your MATLAB construction
+    b1 = ket_jm(+13/2)   # m=+6.5 -> idx 0
+    b2 = ket_jm(+5/2)    # m=+2.5 -> idx 4
+    b3 = ket_jm(-3/2)    # m=-1.5 -> idx 8
+    b4 = ket_jm(-11/2)   # m=-5.5 -> idx 12
+
+    state1 = c1*b1 + c2*b2 + c3*b3 + c4*b4
+    state2 = c5*b1 + c6*b2 + c7*b3 + c8*b4
 
     phase = np.exp(1j * phi)
-    a = math.sqrt(105) / 14
-    b = math.sqrt(91) / 14
+    a = np.sqrt(13/7) / 2
+    b = np.sqrt(1 - a**2)
 
-    ket0_top = a * state1 + b * phase * state2
-    ket1_top = b * state1 - a * np.conjugate(phase) * state2
+    ket0 = a * state1 + b * phase * state2
+    ket0 = ket0.unit()  # normalize (QuTiP)
 
-    ket0_top = ket0_top / np.linalg.norm(ket0_top)
-    ket1_top = ket1_top / np.linalg.norm(ket1_top)
-    return ket0_top, ket1_top, N
+    # logical-1 by applying exp(-i pi Jx)
+    Jx = qutip.jmat(j, 'x')          # Qobj operator dim x dim
+    U = (-1j * np.pi * Jx).expm()
+    ket1 = (U * ket0).unit()
+
+    # Convert to numpy 1D arrays at the end
+    #ket0_np = ket0.full().ravel()
+    #ket1_np = ket1.full().ravel()
+
+    return ket0, ket1, N
+
 
 
 def gross_13_piqs(phi: float = 0.0, *, return_qutip: bool = True):
