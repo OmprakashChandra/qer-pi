@@ -1,4 +1,4 @@
-classdef code
+classdef codewords
     % CODES A class containing static methods for constructing permutation-invariant quantum codes.
     % This class provides methods to generate logical codewords for (b,g)-PI and (b,g,m)-PI codes.
     %TODO: Add more code constructions here in future like i) Other kinds of PI codes like Gross codes.
@@ -101,36 +101,85 @@ classdef code
                 error('Index out of range for symmetric basis state.');
             end
         end
+
+        %%%% helper function for generating gross_spin13 code
+         % ====== local function: Jx matrix for spin-j with m = j, j-1, ..., -j ======
+        function Jx = spin_jmat_x(j)
+            dim = round(2*j + 1);
+            mlist = j:-1:-j;  % descending
+
+            % Jplus in this ordering: <m+1|J+|m> = sqrt(j(j+1) - m(m+1))
+            Jp = zeros(dim, dim);
+            for col = 1:dim
+                m = mlist(col);
+                mp = m + 1;
+                if mp <= j
+                    row = round(j - mp) + 1;     % position of |m+1>
+                    Jp(row, col) = sqrt(j*(j+1) - m*(m+1));
+                end
+            end
+
+            Jm = Jp';                 % Hermitian conjugate in this real basis
+            Jx = (Jp + Jm) / 2;
+        end
     
+        function [ket0, ket1] = gross_spin13(phi)
 
-        function [logical0, logical1] = gross_spin13()
-            % Gross code logicals for spin-13/2 (dim = 14)
-            dim = 14;
-            % basis |m> at index m+s+1 with s=13/2 ⇒ m = 13/2, 5/2, -3/2, -11/2
-            basis1 = zeros(dim,1); basis1(14) = 1; % |13/2>
-            basis2 = zeros(dim,1); basis2(10) = 1; % |5/2>
-            basis3 = zeros(dim,1); basis3(6)  = 1; % |-3/2>
-            basis4 = zeros(dim,1); basis4(2)  = 1; % |-11/2>
+            if nargin < 1
+                phi = 0.0;
+            end
 
-            c1 = sqrt(910)/56;     c2 = -3*sqrt(154)/56;
-            c3 = -sqrt(770)/56;    c4 =  sqrt(70)/56;
-            c5 = sqrt(231)/84;     c6 =  sqrt(1365)/84;
-            c7 = -sqrt(273)/28;    c8 = -sqrt(3003)/84;
+            N   = 13;
+            j   = N/2;          % 6.5
+            dim = N + 1;        % 14
 
-            state1 = c1*basis1 + c2*basis2 + c3*basis3 + c4*basis4;
-            state2 = c5*basis1 + c6*basis2 + c7*basis3 + c8*basis4;
+            % --- coefficients (same as Python) ---
+            c1 = sqrt(910) / 56;
+            c2 = -3 * sqrt(154) / 56;
+            c3 = -sqrt(770) / 56;
+            c4 = sqrt(70) / 56;
 
-            phi = 0; phase = exp(1i*phi);
-            a = sqrt(105)/14; b = sqrt(91)/14;
+            c5 = sqrt(231) / 84;
+            c6 = sqrt(1365) / 84;
+            c7 = -sqrt(273) / 28;
+            c8 = -sqrt(3003) / 84;
 
-            logical0 = a*state1 + b*phase*state2;
-            logical1 = b*state1 - a*conj(phase)*state2;
+            % --- helper: |j,m> as a dim x 1 basis vector (QuTiP ordering) ---
+            % m takes values in steps of 1 from j down to -j.
+            function v = ket_jm(m)
+                idx0 = round(j - m);     % 0-based index in QuTiP ordering
+                idx  = idx0 + 1;         % MATLAB 1-based
+                v = zeros(dim, 1);
+                v(idx) = 1;
+            end
 
-            % (optional) ensure unit norm
-            logical0 = logical0 / norm(logical0);
-            logical1 = logical1 / norm(logical1);
+            % These m values match your construction
+            b1 = ket_jm(+13/2);   % m=+6.5  -> idx 1
+            b2 = ket_jm(+5/2);    % m=+2.5  -> idx 5
+            b3 = ket_jm(-3/2);    % m=-1.5  -> idx 9
+            b4 = ket_jm(-11/2);   % m=-5.5  -> idx 13
+
+            state1 = c1*b1 + c2*b2 + c3*b3 + c4*b4;
+            state2 = c5*b1 + c6*b2 + c7*b3 + c8*b4;
+
+            phase = exp(1i * phi);
+            a = (sqrt(13/7)) / 2;
+            b = sqrt(1 - a^2);
+
+            ket0 = a * state1 + b * phase * state2;
+            ket0 = ket0 / norm(ket0);  % normalize (like QuTiP .unit())
+
+            % --- build Jx for spin-j in the |j,m> basis with m descending ---
+            Jx = codewords.spin_jmat_x(j);
+
+            % logical-1: apply exp(-i*pi*Jx)
+            U = expm(-1i * pi * Jx);
+            ket1 = U * ket0;
+            ket1 = ket1 / norm(ket1);
+
         end
 
+       
    
         function [logical0, logical1] = gross_spin17()
             % Gross code logicals for spin-17/2 (dim = 18)
