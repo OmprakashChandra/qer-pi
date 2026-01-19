@@ -1,139 +1,281 @@
 classdef codewords
-    % CODES A class containing static methods for constructing permutation-invariant quantum codes.
-    % This class provides methods to generate logical codewords for (b,g)-PI and (b,g,m)-PI codes.
-    %TODO: Add more code constructions here in future like i) Other kinds of PI codes like Gross codes.
-    %ii) Stabilizer codes like Shor code, Steane code etc.
+    % CODEWORDS
+    % A class containing static methods for constructing permutation-invariant quantum codes.
+    %
+    % Supports:
+    %   - (b,g)-PI code: bgcode(b,g,fullHilbert,useSparse)
+    %   - (b,g,m)-PI code: bgmcode(b,g,m,fullHilbert,useSparse)
+    %   - Gross codes: gross_spin13(phi), gross_spin17()
+    %   - Example: four_qubit()
+    %
+    % Conventions:
+    %   - Dicke subspace vectors are length (N+1) with weight index (w+1).
+    %   - Full Hilbert vectors are length 2^N in computational basis, with qubit-1 as MSB:
+    %       idx = bin2dec(bitstring) + 1.
+    %
+    % Notes:
+    %   - For full Hilbert space, useSparse=true is strongly recommended.
+    %   - Building full 2^N vectors becomes infeasible quickly as N grows.
+
     methods (Static)
-        function [logical_0, logical_1] = bgcode(b, g)
-            %Inputs:
-            %  b - Positive integer as described in https://arxiv.org/pdf/2411.13142.
-            %  g - Positive integer as described in https://arxiv.org/pdf/2411.13142.
-            % Note that 2b>= g+1 must hold. @gopi-btq can we say anything about the distance here?
+
+        %% ===================== (b,g) CODE =====================
+        function [logical_0, logical_1] = bgcode(b, g, fullHilbert, useSparse)
+            % [logical_0, logical_1] = bgcode(b,g,fullHilbert,useSparse)
+            %
+            % Inputs:
+            %   b, g : positive integers (see https://arxiv.org/pdf/2411.13142)
+            %   fullHilbert (optional, default=false):
+            %       false -> Dicke subspace (N+1)
+            %       true  -> full 2^N Hilbert space
+            %   useSparse (optional, default=true for fullHilbert=true):
+            %       Only relevant if fullHilbert=true.
+            %
             % Outputs:
-            %   logical_0 - Logical-0 codeword of the (b,g)-PI code.
-            %   logical_1 - Logical-1 codeword of the (b,g)-PI code.
-            
-            N = 2 * b + g; %total number of physical qubits
-            
-            % Define the relevant symmetric basis states
-            D_0         = code.symmetric_basis_state(N, 0);         % |J, m = -J>
-            D_2b        = code.symmetric_basis_state(N, 2 * b);       % |J, m = 2b - J>
-            D_g         = code.symmetric_basis_state(N, g);           % |J, m = g - J>
-            D_2b_plus_g = code.symmetric_basis_state(N, 2 * b + g);     % |J, m = J>
-            
-            % Construct the logical-0 and logical-1 codewords
-            logical_0 = (sqrt(2 * b - g) * D_0 + sqrt(2 * b + g) * D_2b) / sqrt(4 * b);
-            logical_1 = (sqrt(2 * b - g) * D_2b_plus_g + sqrt(2 * b + g) * D_g) / sqrt(4 * b);
-            
-            % Normalize the codewords
+            %   logical_0, logical_1 : codewords (column vectors)
+
+            if nargin < 3, fullHilbert = false; end
+            if nargin < 4, useSparse   = true;  end
+
+            N = 2*b + g; % total number of physical qubits
+
+            % Dicke states |D(N,w)>
+            D_0         = codewords.symmetric_basis_state(N, 0, fullHilbert, useSparse);
+            D_2b        = codewords.symmetric_basis_state(N, 2*b, fullHilbert, useSparse);
+            D_g         = codewords.symmetric_basis_state(N, g, fullHilbert, useSparse);
+            D_2b_plus_g = codewords.symmetric_basis_state(N, 2*b + g, fullHilbert, useSparse);
+
+            logical_0 = (sqrt(2*b - g) * D_0 + sqrt(2*b + g) * D_2b) / sqrt(4*b);
+            logical_1 = (sqrt(2*b - g) * D_2b_plus_g + sqrt(2*b + g) * D_g) / sqrt(4*b);
+
             logical_0 = logical_0 / norm(logical_0);
             logical_1 = logical_1 / norm(logical_1);
         end
 
-        function [logical0, logical1] = bgmcode(b,g,m)
-            %Parameters
-            %%%%%%%%%%%%
-            %b,g,m: Positive integers (see eqn 8,9 of arxiv.org/pdf/2411.13142)
-            %Note that when g, 2b-g >= 2t+1 and m>= t+1, a (b,g,m) code has distance at least 2t+1
-            % and can correct t errors.
-            %Outputs: 
-            %logical0, logical1: Logical-0 and Logical-1 codewords of the (b,g,m)-PI code.
-            
-            %total number of physical qubits 
-            N = 2*b*m + g;
-            %dimension of the Dicke subspace
-            dim = N+1; 
-            %initialize logical codewords
-            logical0 = zeros(dim, 1);
-            %compute coefficients gamma(b,g,m,k)
-            gamma_vec = code.bgm_gamma_vectors(b,g,m); 
-            %coefficients in the denominator
-            norm_den = 2^m* sqrt(code.double_factorial(2*m-1));
-
-            %fill in the amplitudes
-            for k = 0:m
-                w = 2*b*k; %weight of the Dicke state
-                idx = w+1; 
-                amp = sqrt(nchoosek(m,k))*gamma_vec(k+1)/norm_den;
-                logical0(idx) = amp;
-            end  
-
-            logical0 = logical0/norm(logical0); %normalize logical-0 codeword
-
-            %logical-1 is exactly the flipped version of logical-0. |1>_L = X^{otimes N} |0>_L
-            logical1 = flipud(logical0); 
-        end 
-
-        function gamma_vec = bgm_gamma_vectors(b,g,m)
-
-            gamma_vec = zeros(m+1,1); 
-            prefactor = b^(-m/2); 
-            for k = 0:m
-                prod1 = 1; 
-                for i = k+1:m 
-                    prod1 = prod1* sqrt(2*i*b - g);
-                end 
-                prod2 =1; 
-                for j = (m-k+1):m
-                    prod2 = prod2* sqrt(2*j*b + g); 
-                end 
-                gamma_vec(k+1) = prefactor* prod1* prod2;
-            end 
-        end 
-
-        function val = double_factorial(n)
-            val = prod(n:-2:1); 
-        end 
-
-        function state = symmetric_basis_state(N, m)
-            % SYMMETRIC_BASIS_STATE Computes a symmetric basis state for given parameters.
+        %% ===================== (b,g,m) CODE =====================
+        function [logical0, logical1] = bgmcode(b, g, m, fullHilbert, useSparse)
+            % [logical0, logical1] = bgmcode(b,g,m,fullHilbert,useSparse)
+            %
             % Inputs:
-            %   N - Total number of qubits.
-            %   m - Parameter defining the basis state.
-            % Output:
-            %   state - A (N+1) dimensional column vector with N zeros and 1 one at (m+1)th position.
-            
-            state = zeros(N + 1, 1);
-            index = m + 1;  % MATLAB indices start at 1
-            if index >= 1 && index <= (N + 1)
-                state(index) = 1;
+            %   b, g, m : positive integers (see eqn 8,9 of arxiv.org/pdf/2411.13142)
+            %   fullHilbert (optional, default=false):
+            %       false -> Dicke subspace (N+1)
+            %       true  -> full 2^N Hilbert space
+            %   useSparse (optional, default=true for fullHilbert=true)
+            %
+            % Outputs:
+            %   logical0, logical1 : codewords (column vectors)
+
+            if nargin < 4, fullHilbert = false; end
+            if nargin < 5, useSparse   = true;  end
+
+            N = 2*b*m + g;
+
+            gamma_vec = codewords.bgm_gamma_vectors(b, g, m);
+            norm_den  = 2^m * sqrt(codewords.double_factorial(2*m - 1));
+
+            if ~fullHilbert
+                % ---- Dicke subspace representation (dim = N+1) ----
+                dim = N + 1;
+                logical0 = zeros(dim, 1);
+
+                for k = 0:m
+                    w   = 2*b*k;     % weight
+                    idx = w + 1;     % Dicke index
+                    amp = sqrt(nchoosek(m,k)) * gamma_vec(k+1) / norm_den;
+                    logical0(idx) = amp;
+                end
+
+                logical0 = logical0 / norm(logical0);
+                logical1 = flipud(logical0); % weight w -> N-w in Dicke basis
+
             else
-                error('Index out of range for symmetric basis state.');
+                % ---- Full 2^N representation ----
+                dim = 2^N;
+                if useSparse
+                    logical0 = sparse(dim, 1);
+                else
+                    logical0 = zeros(dim, 1);
+                end
+
+                for k = 0:m
+                    w   = 2*b*k;
+                    amp = sqrt(nchoosek(m,k)) * gamma_vec(k+1) / norm_den;
+
+                    Dfull = codewords.dicke_state_full(N, w, useSparse);
+                    logical0 = logical0 + amp * Dfull;
+                end
+
+                logical0 = logical0 / norm(logical0);
+
+                % logical1 = X^{\otimes N} logical0 (bitwise NOT mapping)
+                logical1 = codewords.apply_global_X_full(logical0, N);
+                logical1 = logical1 / norm(logical1);
             end
         end
 
-        %%%% helper function for generating gross_spin13 code
-         % ====== local function: Jx matrix for spin-j with m = j, j-1, ..., -j ======
+        %% ===================== HELPERS FOR (b,g,m) =====================
+        function gamma_vec = bgm_gamma_vectors(b, g, m)
+            gamma_vec = zeros(m+1, 1);
+            prefactor = b^(-m/2);
+
+            for k = 0:m
+                prod1 = 1;
+                for i = (k+1):m
+                    prod1 = prod1 * sqrt(2*i*b - g);
+                end
+
+                prod2 = 1;
+                for j = (m-k+1):m
+                    prod2 = prod2 * sqrt(2*j*b + g);
+                end
+
+                gamma_vec(k+1) = prefactor * prod1 * prod2;
+            end
+        end
+
+        function val = double_factorial(n)
+            if n <= 0
+                val = 1;
+                return;
+            end
+            val = prod(n:-2:1);
+        end
+
+        %% ===================== SYMMETRIC / DICKE BASIS STATES =====================
+        function state = symmetric_basis_state(N, w, fullHilbert, useSparse)
+            % state = symmetric_basis_state(N,w,fullHilbert,useSparse)
+            %
+            % If fullHilbert=false: returns Dicke basis vector e_{w+1} in dim N+1.
+            % If fullHilbert=true : returns normalized Dicke state |D(N,w)> in dim 2^N.
+
+            if nargin < 3, fullHilbert = false; end
+            if nargin < 4, useSparse   = true;  end
+
+            if ~fullHilbert
+                state = zeros(N + 1, 1);
+                idx = w + 1;
+                if idx < 1 || idx > (N + 1)
+                    error('Weight w out of range for Dicke subspace.');
+                end
+                state(idx) = 1;
+            else
+                state = codewords.dicke_state_full(N, w, useSparse);
+            end
+        end
+
+        function psi = dicke_state_full(N, w, useSparse)
+            % psi = dicke_state_full(N,w,useSparse)
+            % Normalized Dicke state |D(N,w)> in computational basis (2^N x 1).
+            %
+            % Convention: qubit-1 is MSB, idx = bin2dec(bitstring)+1.
+            %
+            % If useSparse=true, returns sparse vector with nnz = nchoosek(N,w).
+
+            if nargin < 3, useSparse = true; end
+            if w < 0 || w > N
+                error('Weight w must be between 0 and N.');
+            end
+
+            dim = 2^N;
+
+            % Fast endpoints
+            if w == 0
+                if useSparse
+                    psi = sparse(1, 1, 1, dim, 1);
+                else
+                    psi = zeros(dim, 1); psi(1) = 1;
+                end
+                return;
+            elseif w == N
+                if useSparse
+                    psi = sparse(dim, 1, 1, dim, 1);
+                else
+                    psi = zeros(dim, 1); psi(dim) = 1;
+                end
+                return;
+            end
+
+            combos = nchoosek(1:N, w);
+            nterms = size(combos, 1);
+
+            idxs = zeros(nterms, 1);
+            for r = 1:nterms
+                bits = zeros(1, N);
+                bits(combos(r, :)) = 1;
+
+                % bits (MSB first) -> integer
+                n0 = 0;
+                for q = 1:N
+                    n0 = bitshift(n0, 1) + bits(q);
+                end
+                idxs(r) = n0 + 1; % MATLAB 1-based
+            end
+
+            amp = 1 / sqrt(nterms);
+
+            if useSparse
+                psi = sparse(idxs, ones(nterms,1), amp, dim, 1);
+            else
+                psi = zeros(dim, 1);
+                psi(idxs) = amp;
+            end
+        end
+
+        function y = apply_global_X_full(x, N)
+            % y = apply_global_X_full(x,N)
+            % Applies X^{\otimes N} to state vector x in full computational basis.
+            % Mapping (0-based): |n> -> |(2^N-1)-n| (bitwise NOT).
+
+            dim = 2^N;
+            if length(x) ~= dim
+                error('State length mismatch for full Hilbert space.');
+            end
+
+            if issparse(x)
+                [ii, ~, vv] = find(x);
+                n0 = ii - 1;
+                n0_not = (dim - 1) - n0;
+                jj = n0_not + 1;
+                y = sparse(jj, ones(size(jj)), vv, dim, 1);
+            else
+                y = zeros(dim, 1);
+                for idx = 1:dim
+                    n0 = idx - 1;
+                    n0_not = (dim - 1) - n0;
+                    y(n0_not + 1) = x(idx);
+                end
+            end
+        end
+
+        %% ===================== GROSS 13 (TOP DICKE BLOCK) =====================
         function Jx = spin_jmat_x(j)
             dim = round(2*j + 1);
-            mlist = j:-1:-j;  % descending
+            mlist = j:-1:-j;
 
-            % Jplus in this ordering: <m+1|J+|m> = sqrt(j(j+1) - m(m+1))
             Jp = zeros(dim, dim);
             for col = 1:dim
                 m = mlist(col);
                 mp = m + 1;
                 if mp <= j
-                    row = round(j - mp) + 1;     % position of |m+1>
+                    row = round(j - mp) + 1;
                     Jp(row, col) = sqrt(j*(j+1) - m*(m+1));
                 end
             end
 
-            Jm = Jp';                 % Hermitian conjugate in this real basis
+            Jm = Jp';
             Jx = (Jp + Jm) / 2;
         end
-    
-        function [ket0, ket1] = gross_spin13(phi)
 
+        function [ket0, ket1] = gross_spin13(phi)
             if nargin < 1
                 phi = 0.0;
             end
 
             N   = 13;
-            j   = N/2;          % 6.5
-            dim = N + 1;        % 14
+            j   = N/2;
+            dim = N + 1;
 
-            % --- coefficients (same as Python) ---
             c1 = sqrt(910) / 56;
             c2 = -3 * sqrt(154) / 56;
             c3 = -sqrt(770) / 56;
@@ -144,45 +286,37 @@ classdef codewords
             c7 = -sqrt(273) / 28;
             c8 = -sqrt(3003) / 84;
 
-            % --- helper: |j,m> as a dim x 1 basis vector (QuTiP ordering) ---
-            % m takes values in steps of 1 from j down to -j.
             function v = ket_jm(m)
-                idx0 = round(j - m);     % 0-based index in QuTiP ordering
-                idx  = idx0 + 1;         % MATLAB 1-based
+                idx0 = round(j - m);
+                idx  = idx0 + 1;
                 v = zeros(dim, 1);
                 v(idx) = 1;
             end
 
-            % These m values match your construction
-            b1 = ket_jm(+13/2);   % m=+6.5  -> idx 1
-            b2 = ket_jm(+5/2);    % m=+2.5  -> idx 5
-            b3 = ket_jm(-3/2);    % m=-1.5  -> idx 9
-            b4 = ket_jm(-11/2);   % m=-5.5  -> idx 13
+            b1 = ket_jm(+13/2);
+            b2 = ket_jm(+5/2);
+            b3 = ket_jm(-3/2);
+            b4 = ket_jm(-11/2);
 
             state1 = c1*b1 + c2*b2 + c3*b3 + c4*b4;
             state2 = c5*b1 + c6*b2 + c7*b3 + c8*b4;
 
             phase = exp(1i * phi);
             a = (sqrt(13/7)) / 2;
-            b = sqrt(1 - a^2);
+            bb = sqrt(1 - a^2);
 
-            ket0 = a * state1 + b * phase * state2;
-            ket0 = ket0 / norm(ket0);  % normalize (like QuTiP .unit())
+            ket0 = a * state1 + bb * phase * state2;
+            ket0 = ket0 / norm(ket0);
 
-            % --- build Jx for spin-j in the |j,m> basis with m descending ---
             Jx = codewords.spin_jmat_x(j);
+            U  = expm(-1i * pi * Jx);
 
-            % logical-1: apply exp(-i*pi*Jx)
-            U = expm(-1i * pi * Jx);
             ket1 = U * ket0;
             ket1 = ket1 / norm(ket1);
-
         end
 
-       
-   
+        %% ===================== GROSS 17 (TOP DICKE BLOCK) =====================
         function [logical0, logical1] = gross_spin17()
-            % Gross code logicals for spin-17/2 (dim = 18)
             logical0 = [ ...
                 0;
                 (1/25056).*((-2).*(663.*(4619-34*sqrt(17290))).^(1/2)+9.*(3570.*(281+2*sqrt(17290))).^(1/2));
@@ -233,30 +367,24 @@ classdef codewords
             logical1 = logical1 / norm(logical1);
         end
 
+        %% ===================== EXAMPLE 4-QUBIT CODE (FULL SPACE) =====================
         function [ket0L, ket1L] = four_qubit()
-            n   = 4;
+            n = 4;
             dim = 2^n;
 
             ket0L = zeros(dim,1);
             ket1L = zeros(dim,1);
 
-            % |0_L>
             ket0L(idx_from_bitstr('0000')) = 1/sqrt(2);
             ket0L(idx_from_bitstr('1111')) = 1/sqrt(2);
 
-            % |1_L>
             ket1L(idx_from_bitstr('0011')) = 1/sqrt(2);
             ket1L(idx_from_bitstr('1100')) = 1/sqrt(2);
 
-           
-
-           
             function idx = idx_from_bitstr(bitstr)
                 idx = bin2dec(bitstr) + 1;
             end
         end
 
     end
-
 end
-    

@@ -165,11 +165,12 @@ function model = noisemodel(noisetype, param, dim)
         if ~(isscalar(gamma) && isreal(gamma) && gamma >= 0 && gamma <= 1)
             error('gamma must be a real scalar in [0,1].');
         end
-
-        N = round(log2(dim));
-        if 2^N ~= dim
-            error('dim must be exactly a power of 2 (dim = 2^N).');
-        end
+        
+        N = dim; %number of qubits  
+        %N = round(log2(dim));
+        %if 2^N ~= dim
+        %    error('dim must be exactly a power of 2 (dim = 2^N).');
+        %end
 
         % ---- single-qubit amplitude damping Kraus ops ----
         E0 = [1 0; 0 sqrt(1-gamma)];
