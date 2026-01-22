@@ -77,6 +77,9 @@ def optimise(
     ket1 = qutip.basis(2, 1)
     Uc = logical0 * ket0.dag() + logical1 * ket1.dag()  # (d x 2)
 
+    #---setting numerical precision for sdp---#
+    solver_opts = {**solver_opts, "eps": 1e-9}
+
     if rho_L is None:
         rho_L = np.eye(2) / 2
     rho_L = np.asarray(rho_L, dtype=np.complex128)

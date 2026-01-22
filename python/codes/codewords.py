@@ -88,8 +88,8 @@ def as_qutip_objects(rho: np.ndarray, ket0: np.ndarray, ket1: np.ndarray):
 
 
 def symmetric_code_to_piqs_reduced(
-    ket0_top: np.ndarray,
-    ket1_top: np.ndarray,
+    ket0_top,
+    ket1_top,
     N: int,
     *,
     return_qutip: bool = True,
@@ -150,7 +150,7 @@ def double_factorial(n: int) -> int:
 # (b,g)-PI code
 # ============================================================
 
-def bgcode_kets_in_top_block(b: int, g: int) -> Tuple[np.ndarray, np.ndarray, int]:
+def bgcode_kets_in_top_block(b: int, g: int, return_qutip: bool = False) -> Tuple[np.ndarray, np.ndarray, int]:
     """
     Logical codewords for the (b,g)-PI code in the top block (dim N+1) Dicke basis.
 
@@ -173,6 +173,10 @@ def bgcode_kets_in_top_block(b: int, g: int) -> Tuple[np.ndarray, np.ndarray, in
 
     ket0 = ket0 / np.linalg.norm(ket0)
     ket1 = ket1 / np.linalg.norm(ket1)
+    if return_qutip:
+        import qutip  # type: ignore
+        ket0 = qutip.Qobj(ket0, dims=[[N + 1], [1]])
+        ket1 = qutip.Qobj(ket1, dims=[[N + 1], [1]])
     return ket0, ket1, N
 
 
@@ -213,7 +217,7 @@ def bgm_gamma_vectors(b: int, g: int, m: int) -> np.ndarray:
     return gamma
 
 
-def bgmcode_kets_in_top_block(b: int, g: int, m: int) -> Tuple[np.ndarray, np.ndarray, int]:
+def bgmcode_kets_in_top_block(b: int, g: int, m: int, return_qutip: bool = False) -> Tuple[np.ndarray, np.ndarray, int]:
     """
     Logical codewords for the (b,g,m)-PI code in the top block (dim N+1) Dicke basis.
 
@@ -235,6 +239,10 @@ def bgmcode_kets_in_top_block(b: int, g: int, m: int) -> Tuple[np.ndarray, np.nd
 
     ket0 = ket0 / np.linalg.norm(ket0)
     ket1 = ket0[::-1].copy()  # X^{⊗N}: w -> N-w
+    if return_qutip:
+        import qutip  # type: ignore
+        ket0 = qutip.Qobj(ket0, dims=[[N + 1], [1]])
+        ket1 = qutip.Qobj(ket1, dims=[[N + 1], [1]])
     return ket0, ket1, N
 
 
