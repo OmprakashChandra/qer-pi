@@ -25,3 +25,5 @@ cvx/
 .DS_Store
 python/testing.ipynb
 python/testing.ipynb
+
+echo "qer_env/" >> .gitignore
