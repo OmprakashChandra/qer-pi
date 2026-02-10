@@ -145,6 +145,80 @@ def double_factorial(n: int) -> int:
         out *= k
     return out
 
+# ============================================================
+# (g,n,u) - PI code
+# ============================================================
+def gnucode_kets_in_top_block(
+    g: int,
+    n: int,
+    u: int,
+    *,
+    return_qutip: bool = False,
+    qutip_dims: Optional[list] = None,
+):
+    """
+    Construct (g,n,u) gnu PI-code logical codewords |0_L>, |1_L>
+    directly from Definition (2a): even/odd Dicke-weight superpositions.
+
+    Symmetric-subspace representation: vectors of length (N+1), indexed by Dicke weight w.
+    Here N = g*n*u is the number of physical qubits.
+
+    |0_L> ∝ sum_{ell even} sqrt(C(n,ell)) |D_{g ell}>
+    |1_L> ∝ sum_{ell odd } sqrt(C(n,ell)) |D_{g ell}>
+
+    Returns:
+        (psi0, psi1, N)
+    where psi0, psi1 are normalized.
+    """
+    if g <= 0 or n < 0 or u <= 0:
+        raise ValueError("Require g>0, n>=0, u>0")
+    N = g * n * u
+
+    psi0 = np.zeros(N + 1, dtype=complex)
+    psi1 = np.zeros(N + 1, dtype=complex)
+
+    # Build unnormalized logical kets in symmetric subspace
+    for ell in range(n + 1):
+        w = g * ell
+        if w > N:
+            continue
+        amp = np.sqrt(math.comb(n, ell))
+        if (ell % 2) == 0:
+            psi0[w] += amp
+        else:
+            psi1[w] += amp
+
+    # Normalize each logical state
+    n0 = np.linalg.norm(psi0)
+    n1 = np.linalg.norm(psi1)
+    if n0 == 0 or n1 == 0:
+        raise ValueError("One of the logical states became zero. Check parameters g,n,u.")
+    psi0 /= n0
+    psi1 /= n1
+
+    if not return_qutip:
+        return psi0, psi1, N
+
+    # QuTiP output (ket Qobj in (N+1)-dim symmetric subspace)
+    try:
+        from qutip import Qobj
+    except ImportError as e:
+        raise ImportError("return_qutip=True but qutip is not installed/importable.") from e
+
+    dims = qutip_dims if qutip_dims is not None else [[N + 1], [1]]
+    ket0 = Qobj(psi0.reshape(-1, 1), dims=dims)
+    ket1 = Qobj(psi1.reshape(-1, 1), dims=dims)
+    return ket0, ket1, N
+
+def gnucode_piqs(g: int, n: int, u: int, *, return_qutip: bool = True):
+    """
+    PIQS reduced-space embedding for (g,n,u) gnu code:
+      returns rho, l0, l1 in reduced space.
+    """
+    ket0_top, ket1_top, N = gnucode_kets_in_top_block(g, n, u, return_qutip=False)
+    return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
+
+
 
 # ============================================================
 # (b,g)-PI code
@@ -254,6 +328,30 @@ def bgmcode_piqs(b: int, g: int, m: int, *, return_qutip: bool = True):
     ket0_top, ket1_top, N = bgmcode_kets_in_top_block(b, g, m)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
 
+# ===============================================================
+# 7 qubit PI code 
+# ===============================================================
+def seven_qubit_code_kets_in_top_block(return_qutip: bool = False) -> Tuple[np.ndarray, np.ndarray, int]:
+    """
+    7-qubit PI code in the top block (dim 8).
+    Returns (ket0_top, ket1_top, N=7).
+    """
+    N = 7
+    ket0_top = np.sqrt(3/10)*symmetric_basis_state(N,0) + np.sqrt(7/10)*symmetric_basis_state(N,5)
+    ket1_top = np.sqrt(7/10)*symmetric_basis_state(N,2) - np.sqrt(3/10)*symmetric_basis_state(N,7)
+    if return_qutip:
+        import qutip  # type: ignore
+        ket0_top = qutip.Qobj(ket0_top, dims=[[N + 1], [1]])
+        ket1_top = qutip.Qobj(ket1_top, dims=[[N + 1], [1]])
+    return ket0_top, ket1_top, N
+
+def seven_qubit_piqs(*, return_qutip: bool = True):
+    """
+    PIQS reduced-space embedding for 7-qubit PI code:
+      N=7, blocks [8,6,4,2] total 20.
+    """
+    ket0_top, ket1_top, N = seven_qubit_code_kets_in_top_block(return_qutip=return_qutip)
+    return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
 
 # ============================================================
 # Gross 13-qubit code (top block dim 14, reduced dim 56)
