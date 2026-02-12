@@ -85,6 +85,7 @@ function [fid_no, Xo1] = optimisation_direct(zero_l, one_l, E, rho_l, enc_flag)
         end
 
         % Complex Hermitian SDP
+        %cvx_solver mosek
         cvx_begin quiet sdp
             variable X(d_l*d, d_l*d) complex hermitian semidefinite 
             maximize(trace(X * C))
@@ -96,6 +97,7 @@ function [fid_no, Xo1] = optimisation_direct(zero_l, one_l, E, rho_l, enc_flag)
 
         fid_no = real(trace(X * C));
         Xo1 = X;
+        %cvx_end
 
     else
         % No encoding: work directly in physical space
@@ -116,6 +118,7 @@ function [fid_no, Xo1] = optimisation_direct(zero_l, one_l, E, rho_l, enc_flag)
         end
 
         % Complex Hermitian SDP
+        %cvx_solver mosek
         cvx_begin quiet sdp
             variable X(d^2, d^2) complex hermitian semidefinite
             maximize(real(trace(X * C)))

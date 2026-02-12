@@ -14,12 +14,12 @@ def noisemodel(
 ):
     """
     Generate a quantum noise channel in PIQS and return either Kraus operators,
-    the Choi matrix, or the superoperator exp(L dt).
+    the Choi matrix, or the superoperator S = exp(L t).
 
     Parameters
     ----------
     noise_type : str
-        Supported: 'global symmetric depolarizing', 'local symmetric depolarizing'
+        Supported: 'global symmetric depolarizing', 'local symmetric depolarizing', 'global symmetric amplitude damping', 'local symmetric amplitude damping'
     num_qubits : int
         Number of qubits.
     gamma : float
@@ -29,7 +29,7 @@ def noisemodel(
     return_rep : str
         'kraus' -> list of Kraus operators (slow: Choi eigen-decomposition)
         'choi'  -> Choi matrix (fast)
-        'super' -> superoperator exp(L dt)
+        'super' -> superoperator S = exp(L t)
 
     Returns
     -------
@@ -46,9 +46,16 @@ def noisemodel(
     if noise_type == "local symmetric depolarizing":
         return _local_symmetric_depolarizing(num_qubits, gamma, dt, return_rep)
 
+    if noise_type == "global symmetric amplitude damping": 
+        return _global_symmetric_amplitude_damping(num_qubits, gamma, dt, return_rep)
+
+    if noise_type == "local symmetric amplitude damping":
+        return _local_symmetric_amplitude_damping(num_qubits, gamma, dt, return_rep)
+
     raise ValueError(
         "Unsupported noise type. Supported types: "
-        "'global symmetric depolarizing', 'local symmetric depolarizing'."
+        "'global symmetric depolarizing', 'local symmetric depolarizing', "
+        "'global symmetric amplitude damping', 'local symmetric amplitude damping'."
     )
 
 
@@ -99,6 +106,38 @@ def _local_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float, retu
         d = int(np.sqrt(L.shape[0]))
         return _kraus_from_choi(choi, d_out=d, d_in=d)
 
+    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+
+def _global_symmetric_amplitude_damping(num_qubits: int, gamma: float, dt: float, return_rep: str): 
+    """ generates a superoperator corresponding to Lindbladian with jump operator J_ = J_x - iJ_y, where Jx and Jy are the collective spin operators of N+1 dimensions. """
+    system = Dicke(num_qubits)
+    system.collective_emission = gamma
+    L = system.liouvillian()
+    E = (L * dt).expm()    
+    if return_rep == "super":
+        return E 
+    choi = to_choi(E)
+    if return_rep == "choi": 
+        return choi
+    if return_rep == "kraus": 
+        d = int(np.sqrt(L.shape[0]))
+        return _kraus_from_choi(choi, d_out = d, d_in = d)
+    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+
+def _local_symmetric_amplitude_damping(num_qubits: int, gamma: float, dt: float, return_rep: str):
+    """ generates a superoperator corresponding to Lindbladian with jump operators J_-^(i) = sigma_-^(i) for i=1,...,N, where sigma_-^(i) is the lowering operator on the i-th qubit. """
+    system = Dicke(num_qubits)
+    system.emission = gamma
+    L = system.liouvillian()
+    E = (L * dt).expm()    
+    if return_rep == "super":
+        return E 
+    choi = to_choi(E)
+    if return_rep == "choi": 
+        return choi
+    if return_rep == "kraus": 
+        d = int(np.sqrt(L.shape[0]))
+        return _kraus_from_choi(choi, d_out = d, d_in = d)
     raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
 
 

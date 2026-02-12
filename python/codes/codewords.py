@@ -172,10 +172,10 @@ def gnucode_kets_in_top_block(
     """
     if g <= 0 or n < 0 or u <= 0:
         raise ValueError("Require g>0, n>=0, u>0")
-    N = g * n * u
+    N = int(g * n * u)
 
-    psi0 = np.zeros(N + 1, dtype=complex)
-    psi1 = np.zeros(N + 1, dtype=complex)
+    psi0 = np.zeros(int(N + 1), dtype=complex)
+    psi1 = np.zeros(int(N + 1), dtype=complex)
 
     # Build unnormalized logical kets in symmetric subspace
     for ell in range(n + 1):
