@@ -1,4 +1,4 @@
-function out = prep_uniform_dicke(M, Pulses, varargin)
+function out = state_prepe_gpg(M, Pulses, varargin)
     
     % Parameters
     % ____________________
@@ -17,11 +17,22 @@ function out = prep_uniform_dicke(M, Pulses, varargin)
     %   X          : Pulses x 4 matrix [alpha beta gamma kappa]
     %   info       : settings and diagnostics
     % ____________________
-%PREP_UNIFORM_DICKE  Robust state-prep in the Dicke subspace.
+%STATE_PREPE_GPG  Robust state-prep in the Dicke subspace.
 %
 % This is a self-contained, "best-practice" optimizer for your control ansatz:
 %   Per pulse n:  U_n = Rz(alpha_n) * Ry(beta_n) * Rz(gamma_n) * G(kappa_n)
 %   where G(kappa) = diag(exp(-i*kappa*m^2)) in Dicke basis m=-S..S, S=M/2.
+%
+% Quick overview (how we reach the target from a given initial state):
+%   1) Start from |psi0> in the Dicke basis (user-provided or default |m=-S>).
+%   2) Apply a sequence of P pulses; each pulse combines nonlinear phase
+%      shaping G(kappa) with collective rotations Rz-Ry-Rz.
+%   3) After each candidate sequence, compare the generated state to
+%      |psi_target> after removing only the global phase.
+%   4) Optimize pulse parameters [alpha, beta, gamma, kappa] to minimize
+%      this phase-aligned distance, which is equivalent to maximizing fidelity.
+%   5) Use continuation (P=1..P) plus multistart/random restarts to avoid
+%      poor local minima and improve the final overlap.
 %
 % Target state:
 %   User-supplied state vector in the Dicke basis of length M+1.
@@ -39,10 +50,10 @@ function out = prep_uniform_dicke(M, Pulses, varargin)
 %        f = || psi(x) - e^{i phi} psi_target ||^2 = 2(1 - |<psiT|psi>|)
 %
 % Usage:
-%   out = prep_uniform_dicke(M, P);
-%   out = prep_uniform_dicke(M, P, target_state);
-%   out = prep_uniform_dicke(M, P, target_state, 'InitialState', psi0);
-%   out = prep_uniform_dicke(M, P, target_state, 'Restarts', 200, 'UseMultiStart', true);
+%   out = state_prepe_gpg(M, P);
+%   out = state_prepe_gpg(M, P, target_state);
+%   out = state_prepe_gpg(M, P, target_state, 'InitialState', psi0);
+%   out = state_prepe_gpg(M, P, target_state, 'Restarts', 200, 'UseMultiStart', true);
 %
 % Name-Value options:
 %   'TargetState'   (default [])    Dicke-basis target state coefficients
@@ -309,7 +320,12 @@ for P = Pstart:Pfinal
         problem = createOptimProblem('fmincon', ...
             'objective', f, 'x0', starts{1}, 'lb', lb, 'ub', ub, 'options', options_fmincon);
 
-        sp = CustomStartPointSet(cell2mat(starts')); %#ok<*NASGU>
+        % CustomStartPointSet expects rows = start points, columns = variables.
+        startMat = zeros(opt.Restarts, dim);
+        for rr = 1:opt.Restarts
+            startMat(rr, :) = starts{rr}(:).';
+        end
+        sp = CustomStartPointSet(startMat);
         ms = MultiStart('Display','off', 'UseParallel', false);
         [xbest_P, fbest_P, exitflag_P, ~, ~] = run(ms, problem, sp);
     else
