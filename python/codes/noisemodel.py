@@ -116,11 +116,12 @@ def _global_symmetric_amplitude_damping(num_qubits: int, gamma: float, dt: float
     E = (L * dt).expm()    
     if return_rep == "super":
         return E 
-    choi = to_choi(E)
-    if return_rep == "choi": 
+    if return_rep == "choi":
+        choi = to_choi(E) 
         return choi
     if return_rep == "kraus": 
         d = int(np.sqrt(L.shape[0]))
+        choi = to_choi(E)
         return _kraus_from_choi(choi, d_out = d, d_in = d)
     raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
 
