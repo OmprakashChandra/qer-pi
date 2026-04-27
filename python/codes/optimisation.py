@@ -160,9 +160,25 @@ def no_recovery(rho, noise):
 
     # --- Choi branch ---
     J = noise
-    rhoT = qt.Qobj(rho.full().T, dims=rho.dims)
-    X = qt.tensor(rhoT, rho)              # (rho^T ⊗ rho)
+    Jm = np.asarray(J.full(), dtype=np.complex128)
+    Jm = (Jm + Jm.conj().T) / 2
 
-    # multiply ignoring Qobj dims bookkeeping
-    Fe = (J.data @ X.data).trace()
+    d2 = Jm.shape[0]
+    d = int(round(np.sqrt(d2)))
+    if d * d != d2 or Jm.shape[1] != d2:
+        raise ValueError(f"Choi matrix must be square with dimension d^2 x d^2, got {Jm.shape}")
+
+    w, v = np.linalg.eigh(Jm)
+    rho_m = rho.full() if isinstance(rho, qt.Qobj) else np.asarray(rho, dtype=np.complex128)
+    if rho_m.shape != (d, d):
+        raise ValueError(f"rho must be shape ({d}, {d}), got {rho_m.shape}")
+
+    Fe = 0.0
+    for lam, vec in zip(w, v.T):
+        if lam <= 0:
+            continue
+        K = np.sqrt(lam) * vec.reshape((d, d), order="F")
+        tk = np.trace(rho_m @ K)
+        Fe += abs(tk) ** 2
+
     return float(np.real_if_close(Fe))
