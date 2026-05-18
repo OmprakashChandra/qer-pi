@@ -328,6 +328,94 @@ def bgmcode_piqs(b: int, g: int, m: int, *, return_qutip: bool = True):
     ket0_top, ket1_top, N = bgmcode_kets_in_top_block(b, g, m)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
 
+
+# ===============================================================
+# 7-qubit Pollatsek-Ruskai PI code
+# ===============================================================
+def pollatsek_ruskai_7_kets_in_top_block(
+    epsilon: int = 1,
+    return_qutip: bool = False,
+) -> Tuple[np.ndarray, np.ndarray, int]:
+    """
+    7-qubit Pollatsek-Ruskai PI code in the top Dicke block.
+
+    The sign parameter epsilon must be +1 or -1. Returns
+    (ket0_top, ket1_top, N=7).
+    """
+    if epsilon not in (-1, 1):
+        raise ValueError("epsilon must be +1 or -1.")
+
+    N = 7
+    eps = float(epsilon)
+    ket0_top = (
+        eps * math.sqrt(15) * symmetric_basis_state(N, 0)
+        - math.sqrt(7) * symmetric_basis_state(N, 2)
+        + eps * math.sqrt(21) * symmetric_basis_state(N, 4)
+        + math.sqrt(21) * symmetric_basis_state(N, 6)
+    ) / 8
+    ket1_top = (
+        math.sqrt(21) * symmetric_basis_state(N, 1)
+        + eps * math.sqrt(21) * symmetric_basis_state(N, 3)
+        - math.sqrt(7) * symmetric_basis_state(N, 5)
+        + eps * math.sqrt(15) * symmetric_basis_state(N, 7)
+    ) / 8
+
+    ket0_top = ket0_top / np.linalg.norm(ket0_top)
+    ket1_top = ket1_top / np.linalg.norm(ket1_top)
+
+    if return_qutip:
+        import qutip  # type: ignore
+        ket0_top = qutip.Qobj(ket0_top, dims=[[N + 1], [1]])
+        ket1_top = qutip.Qobj(ket1_top, dims=[[N + 1], [1]])
+    return ket0_top, ket1_top, N
+
+
+def pollatsek_ruskai_7_piqs(epsilon: int = 1, *, return_qutip: bool = True):
+    """
+    PIQS reduced-space embedding for the 7-qubit Pollatsek-Ruskai PI code.
+    """
+    ket0_top, ket1_top, N = pollatsek_ruskai_7_kets_in_top_block(epsilon=epsilon)
+    return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
+
+
+# ===============================================================
+# 11-qubit Kubischta-Teixeira PI code
+# ===============================================================
+def kubischta_teixeira_11_kets_in_top_block(
+    return_qutip: bool = False,
+) -> Tuple[np.ndarray, np.ndarray, int]:
+    """
+    11-qubit Kubischta-Teixeira PI code in the top Dicke block.
+
+    Returns (ket0_top, ket1_top, N=11).
+    """
+    N = 11
+    ket0_top = (
+        math.sqrt(5) * symmetric_basis_state(N, 0)
+        + math.sqrt(11) * symmetric_basis_state(N, 8)
+    ) / 4
+    ket1_top = (
+        math.sqrt(11) * symmetric_basis_state(N, 3)
+        + math.sqrt(5) * symmetric_basis_state(N, 11)
+    ) / 4
+
+    ket0_top = ket0_top / np.linalg.norm(ket0_top)
+    ket1_top = ket1_top / np.linalg.norm(ket1_top)
+
+    if return_qutip:
+        import qutip  # type: ignore
+        ket0_top = qutip.Qobj(ket0_top, dims=[[N + 1], [1]])
+        ket1_top = qutip.Qobj(ket1_top, dims=[[N + 1], [1]])
+    return ket0_top, ket1_top, N
+
+
+def kubischta_teixeira_11_piqs(*, return_qutip: bool = True):
+    """
+    PIQS reduced-space embedding for the 11-qubit Kubischta-Teixeira PI code.
+    """
+    ket0_top, ket1_top, N = kubischta_teixeira_11_kets_in_top_block()
+    return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
+
 # ===============================================================
 # 7 qubit PI code 
 # ===============================================================
@@ -500,5 +588,3 @@ def gross_17_piqs(*, return_qutip: bool = True):
     """
     ket0_top, ket1_top, N = gross_17_kets_in_top_block()
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
-
-
