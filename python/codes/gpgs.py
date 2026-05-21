@@ -42,6 +42,8 @@ class GPGStatePrepResult:
     rho_best: Optional[qt.Qobj] = None
     gpg_mode: str = "noiseless"
     cooperativity: Optional[float] = None
+    X_with_detuning: Optional[np.ndarray] = None
+    detunings: Optional[np.ndarray] = None
 
 
 def dicke_dim(num_qubits: int) -> int:
@@ -88,6 +90,46 @@ def coerce_pulse_params(params: ArrayLike) -> np.ndarray:
     raise ValueError("params must be flat length 4*P or a (P, 4) array.")
 
 
+def coerce_detuned_pulse_params(params: ArrayLike, detuning_seed: float = 1.0) -> np.ndarray:
+    """
+    Return pulse parameters as a ``(P, 5)`` array.
+
+    Columns are ``[alpha, beta, gamma, kappa, detuning]``.  Existing
+    four-parameter GPG sequences are accepted and padded with ``detuning_seed``.
+    """
+    arr = np.asarray(params, dtype=float)
+    if arr.size == 0:
+        return arr.reshape(0, 5)
+    if arr.ndim == 1:
+        if arr.size % 5 == 0:
+            return arr.reshape(-1, 5)
+        if arr.size % 4 == 0:
+            x4 = arr.reshape(-1, 4)
+            out = np.zeros((x4.shape[0], 5), dtype=float)
+            out[:, :4] = x4
+            out[:, 4] = detuning_seed
+            return out
+        raise ValueError("Flat detuned pulse arrays must have length 5*P or 4*P.")
+    if arr.ndim == 2 and arr.shape[1] == 5:
+        return arr
+    if arr.ndim == 2 and arr.shape[1] == 4:
+        out = np.zeros((arr.shape[0], 5), dtype=float)
+        out[:, :4] = arr
+        out[:, 4] = detuning_seed
+        return out
+    raise ValueError("params must be flat or a (P, 4)/(P, 5) array.")
+
+
+def pulse_params_without_detuning(params: ArrayLike) -> np.ndarray:
+    """Return the coherent ``[alpha,beta,gamma,kappa]`` part of a pulse sequence."""
+    arr = np.asarray(params, dtype=float)
+    if arr.size == 0:
+        return arr.reshape(0, 4)
+    if arr.ndim == 2 and arr.shape[1] == 5:
+        return arr[:, :4]
+    return coerce_pulse_params(arr)
+
+
 def normalize_gpg_mode(gpg_mode: str) -> str:
     """Normalize user-facing GPG mode aliases."""
     mode = str(gpg_mode).strip().lower().replace("_", "-")
@@ -99,19 +141,23 @@ def normalize_gpg_mode(gpg_mode: str) -> str:
         "noisy": "erroneous",
         "error": "erroneous",
         "err": "erroneous",
+        "detuned-noisy": "detuned",
+        "noisy-detuned": "detuned",
+        "detuned-erroneous": "detuned",
+        "erroneous-detuned": "detuned",
     }
     mode = aliases.get(mode, mode)
-    if mode not in {"noiseless", "erroneous"}:
-        raise ValueError("gpg_mode must be 'noiseless' or 'erroneous'.")
+    if mode not in {"noiseless", "erroneous", "detuned"}:
+        raise ValueError("gpg_mode must be 'noiseless', 'erroneous', or 'detuned'.")
     return mode
 
 
 def _validate_gpg_mode_settings(gpg_mode: str, cooperativity: Optional[float]) -> str:
     """Return a normalized GPG mode and check the required noise parameters."""
     mode = normalize_gpg_mode(gpg_mode)
-    if mode == "erroneous":
+    if mode in {"erroneous", "detuned"}:
         if cooperativity is None or np.isinf(cooperativity):
-            raise ValueError("erroneous GPG mode requires a finite cooperativity.")
+            raise ValueError(f"{mode} GPG mode requires a finite cooperativity.")
         if cooperativity <= 0:
             raise ValueError("cooperativity must be positive.")
     return mode
@@ -268,6 +314,36 @@ def gpg_dephasing_factor(
     )
 
 
+def detuned_gpg_dephasing_factor(
+    num_qubits: int,
+    kappa: float,
+    detuning: float,
+    cooperativity: Optional[float],
+) -> np.ndarray:
+    """
+    Multiplicative density-matrix factor for the detuned noisy GPG map.
+
+    This keeps the usual MATLAB coherent gate ``exp(-i kappa J_z^2)`` and
+    replaces the finite-cooperativity loss factor by the detuned form
+    proportional to ``(n-m)^2/delta + (n+m) delta`` in Dicke-weight order.
+    """
+    dim = dicke_dim(num_qubits)
+    if cooperativity is None or np.isinf(cooperativity):
+        return np.ones((dim, dim), dtype=float)
+    if cooperativity <= 0:
+        raise ValueError("cooperativity must be positive.")
+
+    delta = abs(float(detuning))
+    if delta <= 0:
+        raise ValueError("detuning must be nonzero.")
+
+    indices = np.arange(dim, dtype=float)
+    row_indices, col_indices = np.meshgrid(indices, indices)
+    pulse_area = abs(float(kappa))
+    loss = ((col_indices - row_indices) ** 2) / delta + (col_indices + row_indices) * delta
+    return np.exp(-pulse_area * loss / (2 * np.sqrt(cooperativity)))
+
+
 def _density_array_and_dims(num_qubits: int, rho_or_state: Optional[ArrayLike]):
     dim = dicke_dim(num_qubits)
     if rho_or_state is None:
@@ -328,6 +404,43 @@ def apply_gpg_sequence_density(
     return rho
 
 
+def apply_detuned_gpg_sequence_density(
+    num_qubits: int,
+    params: ArrayLike,
+    rho_or_state: Optional[ArrayLike] = None,
+    *,
+    cooperativity: Optional[float] = None,
+    wrap: bool = True,
+    return_qobj: Optional[bool] = None,
+) -> qt.Qobj | np.ndarray:
+    """
+    Apply a GPG sequence with an optimized detuning per pulse to a density matrix.
+
+    The coherent pulse is the usual ``Rz Ry Rz G(kappa)`` sequence.  The fifth
+    parameter only changes the finite-cooperativity loss factor.
+    """
+    rho, dims, input_was_qobj = _density_array_and_dims(num_qubits, rho_or_state)
+    pulses = coerce_detuned_pulse_params(params)
+    if return_qobj is None:
+        return_qobj = input_was_qobj
+
+    for alpha, beta, gamma, kappa, detuning in pulses:
+        if wrap:
+            alpha, beta, gamma, kappa = wrap_angle([alpha, beta, gamma, kappa])
+
+        G = gpg_phase(num_qubits, kappa).full()
+        rho = G @ rho @ G.conj().T
+        rho = detuned_gpg_dephasing_factor(num_qubits, kappa, detuning, cooperativity) * rho
+
+        R = rotation_zyz(num_qubits, alpha, beta, gamma).full()
+        rho = R @ rho @ R.conj().T
+
+    rho = (rho + rho.conj().T) / 2
+    if return_qobj:
+        return qt.Qobj(rho, dims=dims)
+    return rho
+
+
 def state_prep_density_fidelity(
     num_qubits: int,
     params: ArrayLike,
@@ -346,6 +459,30 @@ def state_prep_density_fidelity(
     """
     target = normalize_state(target_state).reshape(-1, 1)
     rho = apply_gpg_sequence_density(
+        num_qubits,
+        params,
+        initial_state,
+        cooperativity=cooperativity,
+        wrap=wrap,
+        return_qobj=False,
+    )
+    fidelity = float(np.real((target.conj().T @ rho @ target).item()))
+    trace = float(np.real(np.trace(rho)))
+    return min(1.0, max(0.0, fidelity)), max(0.0, trace)
+
+
+def detuned_state_prep_density_fidelity(
+    num_qubits: int,
+    params: ArrayLike,
+    target_state: ArrayLike,
+    *,
+    initial_state: Optional[ArrayLike] = None,
+    cooperativity: Optional[float] = None,
+    wrap: bool = True,
+) -> tuple[float, float]:
+    """Return unnormalized target fidelity and trace for detuned noisy state prep."""
+    target = normalize_state(target_state).reshape(-1, 1)
+    rho = apply_detuned_gpg_sequence_density(
         num_qubits,
         params,
         initial_state,
@@ -500,14 +637,19 @@ def state_prep_sequence_record(
 ) -> dict[str, Any]:
     """Return the standard bookkeeping row for an existing GPG state-prep sequence."""
     mode = _validate_gpg_mode_settings(gpg_mode, cooperativity)
-    pulses = coerce_pulse_params(params)
+    pulses_detuned = None
+    if mode == "detuned":
+        pulses_detuned = coerce_detuned_pulse_params(params)
+        pulses = pulses_detuned[:, :4]
+    else:
+        pulses = coerce_pulse_params(params)
     if mode == "noiseless":
         achieved = apply_gpg_sequence(num_qubits, pulses, initial_state)
         overlap = phase_insensitive_overlap(target, achieved)
         fidelity = float(overlap**2)
         trace = 1.0
         phase_error = phase_aligned_state_error(target, achieved)
-    else:
+    elif mode == "erroneous":
         fidelity, trace = state_prep_density_fidelity(
             num_qubits,
             pulses,
@@ -516,8 +658,17 @@ def state_prep_sequence_record(
             cooperativity=cooperativity,
         )
         phase_error = np.nan
+    else:
+        fidelity, trace = detuned_state_prep_density_fidelity(
+            num_qubits,
+            pulses_detuned,
+            target,
+            initial_state=initial_state,
+            cooperativity=cooperativity,
+        )
+        phase_error = np.nan
 
-    return {
+    record = {
         "X": pulses,
         "F_state": fidelity,
         "1 - F_state": float(1 - fidelity),
@@ -531,6 +682,10 @@ def state_prep_sequence_record(
         "maxiter": int(maxiter),
         "source": source,
     }
+    if pulses_detuned is not None:
+        record["X_detuned"] = pulses_detuned
+        record["detunings"] = pulses_detuned[:, 4].copy()
+    return record
 
 
 def reusable_sequence_for_target(
@@ -1286,7 +1441,7 @@ def optimize_recovery_target(
 
     mode = _validate_gpg_mode_settings(gpg_mode, cooperativity)
     if phase_insensitive_overlap(target, ref) > 1 - 1e-12:
-        return {
+        record = {
             "X": np.empty((0, 4)),
             "F_state": 1.0,
             "1 - F_state": 0.0,
@@ -1300,10 +1455,17 @@ def optimize_recovery_target(
             "maxiter": 0,
             "source": "reference state",
         }
+        if mode == "detuned":
+            record["X_detuned"] = np.empty((0, 5))
+            record["detunings"] = np.empty((0,), dtype=float)
+        return record
 
     if initial_params is not None:
         settings = dict(settings)
-        settings["pulses"] = max(settings["pulses"], len(coerce_pulse_params(initial_params)))
+        if mode == "detuned":
+            settings["pulses"] = max(settings["pulses"], len(coerce_detuned_pulse_params(initial_params)))
+        else:
+            settings["pulses"] = max(settings["pulses"], len(coerce_pulse_params(initial_params)))
 
     t0 = time.perf_counter()
     result = optimize_state_gpg(
@@ -1327,7 +1489,7 @@ def optimize_recovery_target(
     else:
         phase_error = np.nan
         trace = float(np.real(result.rho_best.tr())) if result.rho_best is not None else np.nan
-    return {
+    record = {
         "X": result.X,
         "F_state": result.Fbest,
         "1 - F_state": result.fbest,
@@ -1341,6 +1503,10 @@ def optimize_recovery_target(
         "maxiter": settings.get("maxiter", 220),
         "source": f"optimized {label}:{eig_index}" + (" warm-start" if initial_params is not None else ""),
     }
+    if mode == "detuned":
+        record["X_detuned"] = result.X_with_detuning
+        record["detunings"] = result.detunings
+    return record
 
 
 def synthesize_gpg_recovery_from_lv_data(
@@ -1369,7 +1535,7 @@ def synthesize_gpg_recovery_from_lv_data(
             key = (label, int(spec["eig_index"]))
             cached = reusable_sequence_for_target(spec["target"], sequence_cache)
             if cached is not None:
-                X = cached["X"]
+                X = cached.get("X_detuned", cached["X"]) if mode == "detuned" else cached["X"]
                 if log is not None:
                     log(f"  reused {label} eig={spec['eig_index']} from {cached['source']}")
                 spec.update(
@@ -1411,9 +1577,18 @@ def synthesize_gpg_recovery_from_lv_data(
                     )
                 counter += 1
 
-            sequence_cache.append({"target": spec["target"], "X": spec["X"], "source": spec["source"]})
-            pulse_sequences[key] = spec["X"]
-            optimization_records.append({k: v for k, v in spec.items() if k not in ("target", "X")})
+            sequence_cache.append(
+                {
+                    "target": spec["target"],
+                    "X": spec["X"],
+                    "X_detuned": spec.get("X_detuned"),
+                    "source": spec["source"],
+                }
+            )
+            pulse_sequences[key] = spec.get("X_detuned", spec["X"]) if mode == "detuned" else spec["X"]
+            optimization_records.append(
+                {k: v for k, v in spec.items() if k not in ("target", "X", "X_detuned", "detunings")}
+            )
 
     C_split0_gpg = controlled_entangler_from_gpg_specs(
         num_qubits,
@@ -2312,13 +2487,23 @@ def state_prep_objective(
     and minimizes ``1 - <target|rho|target>`` with the trace-decreasing error
     model left unnormalized.
     """
-    if pulses is not None:
-        params = np.asarray(params, dtype=float)[: 4 * pulses]
     target = normalize_state(target_state)
     psi0 = dicke_basis_state(num_qubits, 0) if initial_state is None else initial_state
     mode = _validate_gpg_mode_settings(gpg_mode, cooperativity)
+    if pulses is not None:
+        stride = 5 if mode == "detuned" else 4
+        params = np.asarray(params, dtype=float)[: stride * pulses]
     if mode == "erroneous":
         fidelity, _ = state_prep_density_fidelity(
+            num_qubits,
+            params,
+            target,
+            initial_state=psi0,
+            cooperativity=cooperativity,
+        )
+        return float(1 - min(1.0, fidelity))
+    if mode == "detuned":
+        fidelity, _ = detuned_state_prep_density_fidelity(
             num_qubits,
             params,
             target,
@@ -2353,6 +2538,15 @@ def state_infidelity(
             cooperativity=cooperativity,
         )
         return float(1 - min(1.0, fidelity))
+    if mode == "detuned":
+        fidelity, _ = detuned_state_prep_density_fidelity(
+            num_qubits,
+            params,
+            target,
+            initial_state=psi0,
+            cooperativity=cooperativity,
+        )
+        return float(1 - min(1.0, fidelity))
 
     psi = apply_gpg_sequence(num_qubits, params, psi0).full().ravel()
     return float(1 - abs(np.vdot(target, psi)) ** 2)
@@ -2378,6 +2572,29 @@ def _bounds_for_pulses(
     return bounds
 
 
+def _detuned_bounds_for_pulses(
+    pulses: int,
+    *,
+    angle_max: float,
+    beta_max: float,
+    kappa_max: float,
+    detuning_min: float,
+    detuning_max: float,
+):
+    bounds = []
+    for _ in range(pulses):
+        bounds.extend(
+            [
+                (-angle_max, angle_max),
+                (-beta_max, beta_max),
+                (-angle_max, angle_max),
+                (-kappa_max, kappa_max),
+                (detuning_min, detuning_max),
+            ]
+        )
+    return bounds
+
+
 def optimize_state_gpg(
     num_qubits: int,
     target_state: ArrayLike,
@@ -2392,6 +2609,9 @@ def optimize_state_gpg(
     angle_max: float = np.pi,
     beta_max: float = np.pi,
     kappa_max: float = np.pi,
+    detuning_min: float = 0.05,
+    detuning_max: float = 20.0,
+    detuning_seed: float = 1.0,
     tol: float = 1e-12,
     method: str = "L-BFGS-B",
     gpg_mode: str = "noiseless",
@@ -2415,41 +2635,62 @@ def optimize_state_gpg(
         raise ValueError("restarts must be at least 1.")
 
     mode = _validate_gpg_mode_settings(gpg_mode, cooperativity)
+    stride = 5 if mode == "detuned" else 4
     rng = np.random.default_rng(seed)
     target = normalize_state(target_state)
     psi0 = dicke_basis_state(num_qubits, 0) if initial_state is None else initial_state
 
     initial_guess = None
     if initial_params is not None:
-        initial_guess = np.zeros(4 * pulses, dtype=float)
-        provided = coerce_pulse_params(initial_params).reshape(-1)
+        initial_guess = np.zeros(stride * pulses, dtype=float)
+        if mode == "detuned":
+            provided = coerce_detuned_pulse_params(initial_params, detuning_seed=detuning_seed).reshape(-1)
+            initial_guess[4::5] = detuning_seed
+        else:
+            provided = coerce_pulse_params(initial_params).reshape(-1)
         n_copy = min(initial_guess.size, provided.size)
         initial_guess[:n_copy] = provided[:n_copy]
 
-    xbest_full = np.zeros(4 * pulses, dtype=float)
+    xbest_full = np.zeros(stride * pulses, dtype=float)
+    if mode == "detuned":
+        xbest_full[4::5] = detuning_seed
     if initial_guess is not None:
         xbest_full[:] = initial_guess
     trace: list[dict[str, Any]] = []
     p_start = 1 if continuation else pulses
 
     for P in range(p_start, pulses + 1):
-        dim = 4 * P
-        bounds = _bounds_for_pulses(
-            P,
-            angle_max=angle_max,
-            beta_max=beta_max,
-            kappa_max=kappa_max,
-        )
+        dim = stride * P
+        if mode == "detuned":
+            bounds = _detuned_bounds_for_pulses(
+                P,
+                angle_max=angle_max,
+                beta_max=beta_max,
+                kappa_max=kappa_max,
+                detuning_min=detuning_min,
+                detuning_max=detuning_max,
+            )
+        else:
+            bounds = _bounds_for_pulses(
+                P,
+                angle_max=angle_max,
+                beta_max=beta_max,
+                kappa_max=kappa_max,
+            )
         lb = np.array([b[0] for b in bounds])
         ub = np.array([b[1] for b in bounds])
 
         x_seed = np.zeros(dim, dtype=float)
+        if mode == "detuned":
+            x_seed[4::5] = detuning_seed
         if initial_guess is not None:
             x_seed[:] = initial_guess[:dim]
         elif P > p_start:
-            x_seed[: 4 * (P - 1)] = xbest_full[: 4 * (P - 1)]
+            x_seed[: stride * (P - 1)] = xbest_full[: stride * (P - 1)]
         elif not continuation:
             x_seed[:] = 0
+            if mode == "detuned":
+                x_seed[4::5] = detuning_seed
 
         starts = [x_seed]
         for _ in range(1, restarts):
@@ -2499,8 +2740,16 @@ def optimize_state_gpg(
             psi_P = apply_gpg_sequence(num_qubits, best_x, psi0).full().ravel()
             F_P = abs(np.vdot(target, psi_P)) ** 2
             tr_P = 1.0
-        else:
+        elif mode == "erroneous":
             F_P, tr_P = state_prep_density_fidelity(
+                num_qubits,
+                best_x,
+                target,
+                initial_state=psi0,
+                cooperativity=cooperativity,
+            )
+        else:
+            F_P, tr_P = detuned_state_prep_density_fidelity(
                 num_qubits,
                 best_x,
                 target,
@@ -2519,13 +2768,22 @@ def optimize_state_gpg(
             }
         )
 
-    psi_best = apply_gpg_sequence(num_qubits, xbest_full, psi0).full().ravel()
+    if mode == "detuned":
+        X_with_detuning = xbest_full.reshape(-1, 5)
+        X_coherent = X_with_detuning[:, :4].copy()
+        detunings = X_with_detuning[:, 4].copy()
+    else:
+        X_with_detuning = None
+        X_coherent = xbest_full.reshape(-1, 4)
+        detunings = None
+
+    psi_best = apply_gpg_sequence(num_qubits, X_coherent, psi0).full().ravel()
     rho_best = None
     if mode == "noiseless":
         overlap = np.vdot(target, psi_best)
         Fbest = float(abs(overlap) ** 2)
         objbest = float(2 * (1 - abs(overlap)))
-    else:
+    elif mode == "erroneous":
         rho_best = apply_gpg_sequence_density(
             num_qubits,
             xbest_full,
@@ -2542,10 +2800,27 @@ def optimize_state_gpg(
         )
         Fbest = float(min(1.0, Fbest))
         objbest = float(1 - Fbest)
+    else:
+        rho_best = apply_detuned_gpg_sequence_density(
+            num_qubits,
+            X_with_detuning,
+            psi0,
+            cooperativity=cooperativity,
+            return_qobj=True,
+        )
+        Fbest, _ = detuned_state_prep_density_fidelity(
+            num_qubits,
+            X_with_detuning,
+            target,
+            initial_state=psi0,
+            cooperativity=cooperativity,
+        )
+        Fbest = float(min(1.0, Fbest))
+        objbest = float(1 - Fbest)
 
     return GPGStatePrepResult(
         xbest=xbest_full,
-        X=xbest_full.reshape(-1, 4),
+        X=X_coherent,
         Fbest=Fbest,
         fbest=1 - Fbest,
         objbest=objbest,
@@ -2556,6 +2831,8 @@ def optimize_state_gpg(
         rho_best=rho_best,
         gpg_mode=mode,
         cooperativity=_recorded_gpg_cooperativity(mode, cooperativity),
+        X_with_detuning=X_with_detuning,
+        detunings=detunings,
     )
 
 

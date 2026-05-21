@@ -1,0 +1,2 @@
+p,cooperativity,base_pulses,max_pulses,first_threshold,second_threshold,exact_infidelity,adaptive_detuned_gpg_infidelity,gpg_minus_exact_penalty,max_state_prep_infidelity,median_state_prep_infidelity,min_state_prep_trace,num_targets_p4,num_targets_p5,num_targets_p6,adaptive_extra_optimized_seconds
+0.0005,100000000.0,4,6,0.04,0.025,3.6092774657880966e-08,0.03468221015958295,0.03468217406680829,0.037780957713509755,0.022153847981801866,0.9843229549761766,16,8,4,445.54931949987076
