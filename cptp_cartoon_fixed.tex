@@ -1,0 +1,328 @@
+\documentclass[tikz,border=4pt]{standalone}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
+
+\providecommand{\ket}[1]{|#1\rangle}
+\providecommand{\bra}[1]{\langle #1|}
+
+\begin{document}
+
+\begin{tikzpicture}[
+    x=1cm,y=1cm,
+    >=Stealth,
+    font=\normalsize,
+    wire/.style={line width=0.58pt, black!88},
+    panel/.style={draw=black!32, rounded corners=5pt, line width=0.45pt, fill=black!1},
+    header/.style={
+        draw=black!20,
+        rounded corners=3pt,
+        fill=purple!8,
+        minimum width=2.75cm,
+        minimum height=0.90cm,
+        align=center,
+        font=\normalsize,
+        inner sep=2pt
+    },
+    inithead/.style={
+        draw=black!20,
+        rounded corners=3pt,
+        fill=black!3,
+        minimum width=1.95cm,
+        minimum height=0.72cm,
+        align=center,
+        font=\normalsize,
+        inner sep=2pt
+    },
+    gateU/.style={
+        draw=blue!55!black,
+        rounded corners=4pt,
+        fill=blue!7,
+        minimum width=0.88cm,
+        align=center,
+        font=\normalsize,
+        inner sep=2pt
+    },
+    gateUpiece/.style={
+        draw=blue!55!black,
+        rounded corners=3pt,
+        fill=blue!7,
+        minimum width=0.86cm,
+        minimum height=0.50cm,
+        align=center,
+        inner sep=1pt
+    },
+    gateC/.style={
+        draw=green!45!black,
+        rounded corners=3pt,
+        fill=green!9,
+        minimum width=0.72cm,
+        minimum height=0.70cm,
+        align=center,
+        font=\normalsize,
+        inner sep=1.5pt
+    },
+    measbox/.style={
+        draw=purple!55!black,
+        rounded corners=5pt,
+        fill=purple!7,
+        minimum width=1.45cm,
+        minimum height=3.70cm,
+        align=center,
+        inner sep=2pt
+    },
+    initbox/.style={
+        draw=blue!45!black,
+        rounded corners=2pt,
+        fill=blue!5,
+        minimum width=0.56cm,
+        minimum height=0.40cm,
+        inner sep=1pt
+    },
+    rhobox/.style={
+        draw=orange!65!black,
+        rounded corners=2pt,
+        fill=orange!9,
+        minimum width=0.70cm,
+        minimum height=0.46cm,
+        inner sep=1pt
+    },
+    outbox/.style={
+        draw=orange!65!black,
+        rounded corners=4pt,
+        fill=orange!9,
+        minimum width=2.90cm,
+        minimum height=1.05cm,
+        align=center,
+        inner sep=2pt
+    },
+    dot/.style={circle, fill=black, inner sep=1.35pt},
+    zerodot/.style={circle, draw=black, fill=white, line width=0.55pt, minimum size=4.5pt, inner sep=0pt},
+    treeO/.style={
+        circle,
+        draw=black!70,
+        fill=white,
+        minimum size=7.2mm,
+        inner sep=0pt
+    },
+    treeG/.style={
+        circle,
+        draw=green!45!black,
+        fill=green!10,
+        minimum size=7.2mm,
+        inner sep=0pt
+    },
+    treeB/.style={
+        circle,
+        draw=blue!55!black,
+        fill=blue!8,
+        minimum size=7.2mm,
+        inner sep=0pt
+    },
+    branchlab/.style={font=\normalsize, inner sep=1pt, fill=black!1},
+    stateG/.style={font=\normalsize, align=center, text=green!40!black, inner sep=1pt},
+    stateB/.style={font=\normalsize, align=center, text=blue!55!black, inner sep=1pt},
+    applab/.style={font=\normalsize, align=center, text=black, inner sep=1pt},
+    treeline/.style={line width=0.58pt, black!75},
+    flowdash/.style={-{Stealth[length=2.0mm]}, line width=0.55pt, dashed, black!45}
+]
+
+% ============================================================
+% Global dimensions
+% ============================================================
+\def\xL{0}
+\def\xR{24.2}
+\def\yTop{9.75}
+\def\yMid{2.35}
+\def\yBot{-3.75}
+
+\path[fill=white] (-0.15,-2.10) rectangle (23.25,9.55);
+
+% ============================================================
+% Upper layer: compact circuit cartoon
+% ============================================================
+
+\def\yS{7.95}
+\def\ya{6.95}
+\def\yb{5.95}
+\def\yv{5.12}
+\def\yk{4.32}
+
+% Column headers
+\node[inithead] at (2.00,9.22) {Initialization};
+\node[header] at (4.90,9.22) {Iteration \(r=0\)\\[-1pt]couple \(S,a_0\)};
+\node[header] at (9.15,9.22) {Iteration \(r=1\)\\[-1pt]couple \(S,a_1\)};
+\node[header, minimum width=2.65cm] at (13.55,9.22) {further iterations};
+\node[header, fill=purple!8, draw=purple!45!black, minimum width=2.75cm] at (18.00,9.22)
+{Measure \& discard\\[-1pt]ancillas \(A\)};
+
+% Labels
+\node[left] at (1.16,\yS) {$S$};
+\node[left] at (1.16,\ya) {$a_0$};
+\node[left] at (1.16,\yb) {$a_1$};
+\node[left] at (1.16,\yv) {$\vdots$};
+\node[left] at (1.16,\yk) {$a_{K-2}$};
+
+% Inputs
+\node[rhobox] at (1.85,\yS) {$\rho_S$};
+\foreach \yy in {\ya,\yb,\yk}{
+    \node[initbox] at (1.85,\yy) {$\ket{0}$};
+}
+
+% Wires
+\draw[wire] (2.25,\yS) -- (20.65,\yS);
+\foreach \yy in {\ya,\yb,\yk}{
+    \draw[wire] (2.25,\yy) -- (18.55,\yy);
+}
+
+% ------------------------------------------------------------
+% Iteration r=0: unitary on S,a0, then controlled feedback U0
+% ------------------------------------------------------------
+\node[gateU, minimum height=1.55cm] (U0split) at (4.05,{(\yS+\ya)/2})
+{\(U^{(1)}_{S,a_0}\)};
+
+\node[gateC] (U0fb) at (5.35,\yS) {$U_0$};
+\draw[wire] (5.35,\ya) -- (U0fb.south);
+\node[zerodot] at (5.35,\ya) {};
+\node[font=\normalsize, inner sep=1pt, fill=black!1] at (5.35,8.58) {\(C\!-\!U_0\)};
+
+% ------------------------------------------------------------
+% Iteration r=1: controlled by a0, acts on S and a1, not on a0
+% ------------------------------------------------------------
+\node[gateU, minimum width=0.96cm, minimum height=2.58cm] (U1split)
+    at (8.15,{(\yS+\yb)/2}) {};
+\node[align=center, font=\normalsize] at (8.15,6.34)
+    {\(U^{(2)}_{S,a_1}\)};
+\draw[densely dotted, line width=0.85pt, black!65]
+    (7.60,\ya) -- (8.70,\ya);
+
+\node[gateC] (U1fb) at (10.35,\yS) {$U_1$};
+\draw[wire] (10.35,\yb) -- (U1fb.south);
+\node[dot] at (10.35,\ya) {};
+\node[zerodot] at (10.35,\yb) {};
+\node[font=\normalsize, inner sep=1pt, fill=black!1] at (10.35,8.58) {\(C\!-\!U_1\)};
+
+% ------------------------------------------------------------
+% Dotted continuation for the omitted iterations
+% ------------------------------------------------------------
+\foreach \yy in {\yS,\ya,\yb,\yk}{
+    \draw[black!1, line width=1.6pt] (11.55,\yy) -- (15.10,\yy);
+    \draw[densely dotted, line width=0.85pt, black!65] (11.55,\yy) -- (15.10,\yy);
+    \node[fill=black!1, inner sep=1pt] at (13.35,\yy) {$\cdots$};
+}
+\node at (13.35,\yv) {\(\ddots\)};
+
+% ------------------------------------------------------------
+% Measure ancillas, forget the result; system output remains
+% ------------------------------------------------------------
+\node[measbox] (Mbox) at (17.85,{(\ya+\yk)/2}) {};
+
+% gauge icon
+\draw[purple!65!black, line width=0.65pt] (17.43,6.58) -- (18.27,6.58);
+\draw[purple!65!black, line width=0.65pt] (17.50,6.58) arc[start angle=180,end angle=0,radius=0.35cm];
+\draw[purple!65!black, line width=0.65pt] (17.85,6.58) -- (18.11,6.94);
+\fill[purple!65!black] (17.85,6.58) circle (1.1pt);
+
+% dotted drop to trash icon
+\draw[dashed, purple!65!black, line width=0.55pt] (17.85,6.23) -- (17.85,5.36);
+\draw[purple!65!black, line width=0.65pt] (17.57,5.08) -- (18.13,5.08);
+\draw[purple!65!black, line width=0.65pt] (17.63,4.99) -- (18.07,4.99);
+\draw[purple!65!black, line width=0.65pt] (17.67,4.96) -- (17.73,4.46);
+\draw[purple!65!black, line width=0.65pt] (18.03,4.96) -- (17.97,4.46);
+\draw[purple!65!black, line width=0.65pt] (17.73,4.46) -- (17.97,4.46);
+\node[align=center] at (17.85,4.05) {discard};
+
+\foreach \yy in {\ya,\yb,\yk}{
+    \draw[-{Stealth[length=1.5mm]}, wire] (16.80,\yy) -- (17.25,\yy);
+}
+
+\draw[-{Stealth[length=2.1mm]}, wire] (18.55,\yS) -- (19.95,\yS);
+\node[outbox] at (21.35,\yS)
+{\(\rho_{\rm out}\)\\[-1pt]
+\(\textstyle=\sum_{j=0}^{K-1}R_j\rho_S R_j^\dagger\)};
+
+\node at (11.50,3.05) {(a)};
+
+% ============================================================
+% Lower layer: branch/state interpretation
+% ============================================================
+\begin{scope}[yshift=1.35cm]
+
+\node at (1.55,1.50) {start};
+\node at (4.65,1.50) {After \(r=0\)};
+\node at (8.70,1.50) {After \(r=1\)};
+\node at (14.50,1.50) {After the omitted iterations};
+\node at (20.15,1.50) {forget \(A\)};
+
+% Start
+\node[treeO] (T0) at (1.55,0.48) {$\rho_S$};
+\draw[treeline] (T0) -- (1.55,-0.95);
+\draw[flowdash] (2.15,0.16) -- (3.15,0.16);
+
+% After r=0
+\node[treeO] (A0) at (4.65,0.50) {$\rho_S$};
+\node[treeG] (A1) at (4.00,-0.85) {$B_0$};
+\node[treeB] (A2) at (5.30,-0.85) {$S_0$};
+\draw[treeline, green!45!black] (A0) -- (A1);
+\draw[treeline, blue!60!black] (A0) -- (A2);
+\node[stateG] at (4.00,-1.45) {\(a_0=0\)};
+\node[applab] at (4.00,-1.78) {apply \(U_0\)};
+\node[stateB] at (5.30,-1.45) {\(a_0=1\)};
+\draw[flowdash] (5.95,0.16) -- (6.95,0.16);
+
+% After r=1
+\node[treeO] (B0) at (8.70,0.62) {$\rho_S$};
+\node[treeG] (B1) at (7.70,-0.65) {$B_0$};
+\node[treeB] (B2) at (9.55,-0.65) {$S_0$};
+\node[treeG] (B3) at (8.62,-2.05) {$B_1$};
+\node[treeB] (B4) at (10.38,-2.05) {$S_1$};
+\draw[treeline, green!45!black] (B0) -- (B1);
+\draw[treeline, blue!60!black] (B0) -- (B2);
+\draw[treeline, green!45!black] (B2) -- (B3);
+\draw[treeline, blue!60!black] (B2) -- (B4);
+\node[stateG] at (7.70,-1.23) {\(a_0=0\)};
+\node[applab] at (7.70,-1.56) {apply \(U_0\)};
+\node[stateG] at (8.62,-2.68) {\(a_0=1\)\\[-1pt]\(a_1=0\)};
+\node[applab] at (8.62,-3.16) {apply \(U_1\)};
+\node[stateB] at (10.55,-2.68) {\(a_0=a_1=1\)};
+\draw[flowdash] (11.00,0.16) -- (12.05,0.16);
+
+% After omitted iterations
+\node[treeO] (C0) at (14.95,0.62) {$\rho_S$};
+\node[treeG] (C1) at (12.30,-0.85) {$R_0$};
+\node[treeG] (C2) at (13.85,-0.85) {$R_1$};
+\node at (14.90,-0.85) {$\cdots$};
+\node[treeG] (C3) at (16.00,-0.85) {$R_{K-2}$};
+\node[treeG] (C4) at (19.05,-0.85) {$R_{K-1}$};
+\draw[treeline] (C0) -- (C1);
+\draw[treeline] (C0) -- (C2);
+\draw[treeline] (C0) -- (14.90,-0.85);
+\draw[treeline] (C0) -- (C3);
+\draw[treeline] (C0) -- (C4);
+\node[stateG] at (12.30,-1.50) {\(a_0=0\)};
+\node[stateG] at (13.85,-1.58) {\(a_0=1\)\\[-1pt]\(a_1=0\)};
+\node[stateG] at (16.00,-1.55) {\(a_0=\cdots=a_{K-3}=1\)\\[-1pt]\(a_{K-2}=0\)};
+\node[stateB] at (19.05,-2.00) {\(a_0=\cdots\)\\[-1pt]\(=a_{K-2}=1\)};
+
+% Trace/forget output
+\node[
+    draw=purple!55!black,
+    fill=purple!8,
+    rounded corners=3pt,
+    minimum width=1.75cm,
+    minimum height=0.62cm,
+    align=center
+] (TrA) at (22.20,-0.85)
+{\(\operatorname{Tr}_A(\Omega)\)};
+\draw[-{Stealth[length=2.4mm]}, line width=0.75pt, purple!65!black]
+    (19.75,-0.85) -- (TrA.west);
+
+\node at (11.50,-3.28) {(b)};
+
+\end{scope}
+
+\end{tikzpicture}
+
+\end{document}
