@@ -22,6 +22,27 @@ def _pinv_sqrt_pos(A: qt.Qobj, rcond: float = 1e-12) -> qt.Qobj:
     return out
 
 
+def _sqrt_pos(A: qt.Qobj, rcond: float = 1e-12) -> qt.Qobj:
+    """
+    Square-root for a PSD operator A, with small numerical eigenvalues dropped.
+    """
+    A = (A + A.dag()) / 2
+    evals, evecs = A.eigenstates()
+    evals = np.array(evals, dtype=float)
+    max_ev = float(evals.max()) if evals.size else 0.0
+    thresh = rcond * max_ev if max_ev > 0 else 0.0
+
+    out = 0 * A
+    for lam, v in zip(evals, evecs):
+        if lam > thresh:
+            out += np.sqrt(lam) * (v * v.dag())
+        elif lam < -thresh:
+            raise ValueError(
+                f"Expected a positive semidefinite operator, got eigenvalue {lam:.3e}."
+            )
+    return out
+
+
 # -----------------------------
 # Code helpers
 # -----------------------------
@@ -41,6 +62,27 @@ def code_projector(ket0: qt.Qobj, ket1: qt.Qobj) -> qt.Qobj:
 # -----------------------------
 # BK recovery: Kraus method
 # -----------------------------
+def petz_recovery_kraus(E_kraus, rho: qt.Qobj, rcond: float = 1e-12):
+    """
+    Petz/Barnum-Knill recovery Kraus operators for reference state rho.
+
+    For a noise channel E(X) = sum_i E_i X E_i^dag, this implements
+        R_i = rho^{1/2} E_i^dag E(rho)^{-1/2}.
+    This is Eq. 17 when E_i are the approximate global-AD Kraus operators.
+    """
+    if rho.isket:
+        rho = qt.ket2dm(rho)
+
+    rho_sqrt = _sqrt_pos(rho, rcond=rcond)
+
+    omega = 0 * rho
+    for E in E_kraus:
+        omega += E * rho * E.dag()
+
+    omega_inv_sqrt = _pinv_sqrt_pos(omega, rcond=rcond)
+    return [rho_sqrt * E.dag() * omega_inv_sqrt for E in E_kraus]
+
+
 def bk_recovery_kraus(E_kraus, ket0: qt.Qobj, ket1: qt.Qobj, rcond: float = 1e-12):
     """
     Barnum–Knill / transpose recovery Kraus ops for a 2D code span{ket0, ket1}.
@@ -48,14 +90,45 @@ def bk_recovery_kraus(E_kraus, ket0: qt.Qobj, ket1: qt.Qobj, rcond: float = 1e-1
     Returns: list of recovery Kraus operators R_i (d×d).
     """
     P = code_projector(ket0, ket1)
+    return petz_recovery_kraus(E_kraus, P, rcond=rcond)
 
-    Omega = 0 * P
-    for E in E_kraus:
-        Omega += E * P * E.dag()
 
-    Omega_inv_sqrt = _pinv_sqrt_pos(Omega, rcond=rcond)
+def approx_global_ad_petz_recovery_kraus(
+    num_qubits: int,
+    gamma: float,
+    dt: float,
+    ket0: qt.Qobj | None = None,
+    ket1: qt.Qobj | None = None,
+    rho: qt.Qobj | None = None,
+    rcond: float = 1e-12,
+):
+    """
+    Eq. 17 Petz recovery operators for the Eq. 16 approximate global AD channel.
 
-    return [P * E.dag() * Omega_inv_sqrt for E in E_kraus]
+    Provide either:
+      - rho: the reference state used in the Petz map, or
+      - ket0 and ket1: logical code states, in which case rho is the maximally
+        mixed state on the codespace.
+    """
+    if rho is None:
+        if ket0 is None or ket1 is None:
+            raise ValueError("Provide either rho or both ket0 and ket1.")
+        rho = code_projector(ket0, ket1) / 2
+
+    try:
+        from .noisemodel import noisemodel
+    except ImportError:
+        from noisemodel import noisemodel
+
+    E_kraus = noisemodel(
+        "global symmetric amplitude damping",
+        num_qubits,
+        gamma,
+        dt,
+        return_rep="kraus",
+        dynamics="approx",
+    )
+    return petz_recovery_kraus(E_kraus, rho, rcond=rcond)
 
 
 # -----------------------------
@@ -83,6 +156,41 @@ def fidelity_logical_subspace_from_kraus(A_list):
     for A in A_list:
         s += abs(A.tr())**2
     return float(s) / 4.0
+
+
+def fidelity_with_recovery_kraus(
+    ket0: qt.Qobj,
+    ket1: qt.Qobj,
+    R_kraus,
+    noise,
+    method: str = "kraus",
+    drop_tol: float = 1e-12,
+):
+    """
+    Entanglement fidelity after applying a fixed recovery Kraus map.
+
+    This is useful when the recovery is the analytic four-Kraus Petz map
+    derived for the approximate global-AD channel, but the noise channel being
+    tested is either:
+      - a Kraus list, or
+      - a Choi/superoperator representation of the exact dynamics.
+    """
+    method = method.lower().strip()
+    rho_L = qt.qeye(2) / 2
+
+    if method == "kraus":
+        V = code_isometry(ket0, ket1)
+        A_list = logical_kraus_from_physical(R_kraus, noise, V, drop_tol=drop_tol)
+        return fidelity_logical_subspace_from_kraus(A_list)
+
+    if method in ("choi", "super"):
+        R_super = qt.kraus_to_super(R_kraus)
+        E_super = qt.to_super(noise)
+        Lambda_super = R_super * E_super
+        J_L = logical_choi_from_physical_super(Lambda_super, ket0, ket1)
+        return entanglement_fidelity_from_choi(J_L, rho_L)
+
+    raise ValueError("method must be 'kraus', 'choi', or 'super'")
 
 
 # -----------------------------

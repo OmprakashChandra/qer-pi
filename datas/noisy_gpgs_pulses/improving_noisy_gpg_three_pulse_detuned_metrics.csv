@@ -1,0 +1,2 @@
+p,cooperativity,pulses_per_state_prep,exact_infidelity,detuned_3pulse_gpg_infidelity,gpg_minus_exact_penalty,max_state_prep_infidelity,median_state_prep_infidelity,min_state_prep_trace,total_optimized_seconds
+0.0005,100000000.0,3,3.6092774657880966e-08,0.26087998266086,0.26087994656808533,0.24999729274421423,0.13435816921854693,0.9888985552182757,120.51645708596334
