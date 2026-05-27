@@ -131,6 +131,44 @@ def approx_global_ad_petz_recovery_kraus(
     return petz_recovery_kraus(E_kraus, rho, rcond=rcond)
 
 
+def first_order_global_ad_petz_recovery_kraus(
+    num_qubits: int,
+    gamma: float,
+    dt: float,
+    ket0: qt.Qobj | None = None,
+    ket1: qt.Qobj | None = None,
+    rho: qt.Qobj | None = None,
+    rcond: float = 1e-12,
+):
+    """
+    Petz recovery operators built from the first-order global AD approximation.
+
+    Provide either:
+      - rho: the reference state used in the Petz map, or
+      - ket0 and ket1: logical code states, in which case rho is the maximally
+        mixed state on the codespace.
+    """
+    if rho is None:
+        if ket0 is None or ket1 is None:
+            raise ValueError("Provide either rho or both ket0 and ket1.")
+        rho = code_projector(ket0, ket1) / 2
+
+    try:
+        from .noisemodel import noisemodel
+    except ImportError:
+        from noisemodel import noisemodel
+
+    E_kraus = noisemodel(
+        "global symmetric amplitude damping",
+        num_qubits,
+        gamma,
+        dt,
+        return_rep="kraus",
+        dynamics="first order AD",
+    )
+    return petz_recovery_kraus(E_kraus, rho, rcond=rcond)
+
+
 # -----------------------------
 # Logical channel via Kraus compression
 # -----------------------------
