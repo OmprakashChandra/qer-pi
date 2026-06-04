@@ -12,7 +12,7 @@ def noisemodel(
     gamma: float,
     dt: float,
     return_rep: str = "kraus",  # "kraus" | "choi" | "super"
-    dynamics: str = "exact",    # "exact" | "approx"
+    dynamics: str = "exact",    # "exact" | "approx" | "first order AD"
 ):
     """
     Generate a quantum noise channel in PIQS and return either Kraus operators,
@@ -33,9 +33,12 @@ def noisemodel(
         'choi'  -> Choi matrix (fast)
         'super' -> superoperator
     dynamics : str
-        'exact'  -> use the exact PIQS Lindbladian dynamics exp(L t)
-        'approx' -> use the second-order Kraus approximation from Eq. 16.
-                    Currently only supported for global symmetric amplitude damping.
+        'exact'          -> use the exact PIQS Lindbladian dynamics exp(L t)
+        'approx'         -> use the second-order Kraus approximation from Eq. 16.
+        'first order AD' -> use the first-order Kraus approximation to global
+                            symmetric amplitude damping. Approximate dynamics
+                            are currently only supported for global symmetric
+                            amplitude damping.
 
     Returns
     -------
@@ -119,6 +122,38 @@ def _global_symmetric_amplitude_damping_approx_kraus(
     return [K0, K1, K2, K3]
 
 
+def _global_symmetric_amplitude_damping_first_order_kraus(
+    num_qubits: int,
+    gamma: float,
+    dt: float,
+) -> List[qutip.Qobj]:
+    """
+    First-order Kraus approximation for global symmetric amplitude damping.
+
+    With alpha = gamma * dt and N = J_+ J_-, the Kraus operators
+
+        K0 = I - alpha N / 2,
+        K1 = sqrt(alpha) J_-,
+
+    reproduce I + alpha D[J_-] through linear order in alpha. The resulting
+    map is completely positive by construction and trace-preserving up to the
+    retained first-order dynamics.
+    """
+    alpha = gamma * dt
+    if alpha < 0:
+        raise ValueError("gamma * dt must be non-negative for amplitude damping.")
+
+    Jm = piqs.jspin(num_qubits, "-", basis="dicke")
+    Jp = Jm.dag()
+    ident = qutip.qeye(Jm.dims[0])
+    Nop = Jp * Jm
+
+    K0 = ident - (alpha / 2) * Nop
+    K1 = np.sqrt(alpha) * Jm
+
+    return [K0, K1]
+
+
 def _global_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float, return_rep: str):
     """Global symmetric depolarizing-like noise using PIQS collective rates."""
     system = Dicke(num_qubits)
@@ -176,12 +211,16 @@ def _global_symmetric_amplitude_damping(
     dynamics: str = "exact",
 ): 
     """ generates a superoperator corresponding to Lindbladian with jump operator J_ = J_x - iJ_y, where Jx and Jy are the collective spin operators of N+1 dimensions. """
+    if dynamics in ("first order ad", "first-order ad", "first_order_ad", "first order", "first"):
+        kraus = _global_symmetric_amplitude_damping_first_order_kraus(num_qubits, gamma, dt)
+        return _return_from_kraus(kraus, return_rep)
+
     if dynamics == "approx":
         kraus = _global_symmetric_amplitude_damping_approx_kraus(num_qubits, gamma, dt)
         return _return_from_kraus(kraus, return_rep)
 
     if dynamics != "exact":
-        raise ValueError("dynamics must be either 'exact' or 'approx'.")
+        raise ValueError("dynamics must be 'exact', 'approx', or 'first order AD'.")
 
     system = Dicke(num_qubits)
     system.collective_emission = gamma
