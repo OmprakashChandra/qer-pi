@@ -18,6 +18,7 @@ import shutil
 import sys
 import time
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -32,51 +33,117 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/mpl")
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
-import matplotlib.pyplot as plt  # noqa: E402
-import pandas as pd  # noqa: E402
 
-from qer import gpgs  # noqa: E402
-from qer.bk_recovery import petz_recovery_kraus  # noqa: E402
-from qer.codewords import bgmcode_kets_in_top_block  # noqa: E402
-from qer.noisemodel import noisemodel  # noqa: E402
-from qer.optimisation import no_recovery  # noqa: E402
+DEFAULT_PLOT_P_VALUES = [5e-4, 1e-3]
+DEFAULT_PLOT_COOPERATIVITIES = [1e6, 1e7, 1e8, 1e9, 1e10]
+_RUNTIME_READY = False
 
 
-CACHE_PATH = (
-    REPO_ROOT
-    / "datas"
-    / "noisy_gpgs_pulses"
-    / "cache"
-    / "detuned_usual_gpg_p5e-4_p1e-3_Csweep.pkl"
-)
-CSV_PATH = (
-    REPO_ROOT
-    / "datas"
-    / "noisy_gpgs_pulses"
-    / "detuned_usual_gpg_p5e-4_p1e-3_Csweep_metrics.csv"
-)
-PLOT_DIR = REPO_ROOT / "plots" / "AD" / "noisy_gpg_implementation"
-PNG_PATH = PLOT_DIR / "detuned_usual_gpg_cooperativity_sweep.png"
-PDF_PATH = PLOT_DIR / "detuned_usual_gpg_cooperativity_sweep.pdf"
-NOISELESS_CACHE_PATH = (
-    REPO_ROOT / "datas" / "noiseless_gpgs_pulses" / "cache" / "gpg_exact_ad_sweep_cache.pkl"
-)
-ERROR_FREE_REF_PATH = (
-    REPO_ROOT
-    / "datas"
-    / "noisy_gpgs_pulses"
-    / "cache"
-    / "error_free_usual_gpg_refs_p5e-4_p1e-3.pkl"
-)
-NOTEBOOK_PATH = REPO_ROOT / "notebooks" / "improving_noisy_gpg.ipynb"
-CANDIDATE_DIR = CACHE_PATH.parent / "parallel_candidates"
+def load_runtime_dependencies() -> None:
+    """Import scientific dependencies after CLI parsing."""
+    global _RUNTIME_READY
+    global plt, pd, gpgs
+    global petz_recovery_kraus, bgmcode_kets_in_top_block
+    global noisemodel, no_recovery
+    if _RUNTIME_READY:
+        return
 
-PLOT_P_VALUES = [5e-4, 1e-3]
-PLOT_COOPERATIVITIES = [1e6, 1e7, 1e8, 1e9, 1e10]
+    import matplotlib.pyplot as plt  # noqa: F401
+    import pandas as pd  # noqa: F401
+
+    from qer import gpgs  # noqa: F401
+    from qer.bk_recovery import petz_recovery_kraus  # noqa: F401
+    from qer.codewords import bgmcode_kets_in_top_block  # noqa: F401
+    from qer.noisemodel import noisemodel  # noqa: F401
+    from qer.optimisation import no_recovery  # noqa: F401
+
+    _RUNTIME_READY = True
+
+
+@dataclass(frozen=True)
+class ScriptPaths:
+    cache_path: Path
+    csv_path: Path
+    plot_dir: Path
+    plot_stem: str
+    candidate_dir: Path
+    prior_cache_paths: tuple[Path, ...]
+    reference_cache_paths: tuple[Path, ...]
+    notebook_path: Path | None
+
+    @property
+    def png_path(self) -> Path:
+        return self.plot_dir / f"{self.plot_stem}.png"
+
+    @property
+    def pdf_path(self) -> Path:
+        return self.plot_dir / f"{self.plot_stem}.pdf"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--cache-path",
+        type=Path,
+        required=True,
+        help="Pickle cache containing detuned GPG recovery sweep points.",
+    )
+    parser.add_argument(
+        "--csv-path",
+        type=Path,
+        default=None,
+        help="Output metrics CSV. Defaults to '<cache-stem>_metrics.csv' next to the cache.",
+    )
+    parser.add_argument(
+        "--plot-dir",
+        type=Path,
+        default=None,
+        help="Directory for regenerated PDF/PNG plots. Defaults to '<cache-dir>/plots'.",
+    )
+    parser.add_argument(
+        "--plot-stem",
+        default="detuned_gpg_cooperativity_sweep",
+        help="Filename stem for regenerated PDF/PNG plots.",
+    )
+    parser.add_argument(
+        "--candidate-dir",
+        type=Path,
+        default=None,
+        help="Scratch directory for worker candidate pickles. Defaults to '<cache-dir>/parallel_candidates'.",
+    )
+    parser.add_argument(
+        "--prior-cache",
+        type=Path,
+        action="append",
+        default=[],
+        help="Optional cache to reuse existing pulse sequences from. May be repeated.",
+    )
+    parser.add_argument(
+        "--reference-cache",
+        type=Path,
+        action="append",
+        default=[],
+        help="Optional cache providing error-free GPG reference lines. May be repeated.",
+    )
+    parser.add_argument(
+        "--cache-key-style",
+        choices=["canonical", "legacy"],
+        default="canonical",
+        help="Use current qer cache keys or the historical notebook cache key.",
+    )
+    parser.add_argument(
+        "--notebook-path",
+        type=Path,
+        default=None,
+        help="Optional notebook to update with a rendered plot preview.",
+    )
+    parser.add_argument(
+        "--update-notebook-preview",
+        action="store_true",
+        help="Update --notebook-path after accepting an improved point.",
+    )
+    parser.add_argument("--plot-p", type=float, nargs="*", default=DEFAULT_PLOT_P_VALUES)
+    parser.add_argument("--plot-c", type=float, nargs="*", default=DEFAULT_PLOT_COOPERATIVITIES)
     parser.add_argument("--p", type=float, default=5e-4)
     parser.add_argument("--c", type=float, default=1e10, help="Cooperativity to polish.")
     parser.add_argument("--workers", type=int, default=min(4, os.cpu_count() or 1))
@@ -89,12 +156,49 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target-eps", type=float, default=None)
     parser.add_argument("--base-seed", type=int, default=2_900_000)
     parser.add_argument("--keep-candidates", action="store_true")
-    parser.add_argument("--no-notebook-preview", action="store_true")
     return parser.parse_args()
 
 
-def cache_key(p: float, cooperativity: float) -> str:
-    """Historical key used by the notebook plot cache."""
+def resolve_paths(args: argparse.Namespace) -> ScriptPaths:
+    cache_path = args.cache_path.expanduser()
+    csv_path = (
+        args.csv_path.expanduser()
+        if args.csv_path is not None
+        else cache_path.with_name(f"{cache_path.stem}_metrics.csv")
+    )
+    plot_dir = (
+        args.plot_dir.expanduser()
+        if args.plot_dir is not None
+        else cache_path.parent / "plots"
+    )
+    candidate_dir = (
+        args.candidate_dir.expanduser()
+        if args.candidate_dir is not None
+        else cache_path.parent / "parallel_candidates"
+    )
+    notebook_path = args.notebook_path.expanduser() if args.notebook_path is not None else None
+    return ScriptPaths(
+        cache_path=cache_path,
+        csv_path=csv_path,
+        plot_dir=plot_dir,
+        plot_stem=args.plot_stem,
+        candidate_dir=candidate_dir,
+        prior_cache_paths=tuple(path.expanduser() for path in args.prior_cache),
+        reference_cache_paths=tuple(path.expanduser() for path in args.reference_cache),
+        notebook_path=notebook_path,
+    )
+
+
+def cache_key(p: float, cooperativity: float, style: str = "canonical") -> str:
+    """Return the target cache key for a detuned GPG recovery point."""
+    if style == "canonical":
+        return gpgs.gpg_recovery_cache_key(
+            p,
+            gpg_mode="detuned",
+            cooperativity=cooperativity,
+        )
+    if style != "legacy":
+        raise ValueError("cache key style must be 'canonical' or 'legacy'.")
     return (
         f"p={float(p):.12e}|C={float(cooperativity):.12e}|mode=detuned"
         f"|restarts=3|maxiter=500|complete-prior-v1"
@@ -142,9 +246,12 @@ def bgm_problem():
     return num_qubits, rho, (ket0, ket1), exact_global_ad, approximate_petz_recovery
 
 
-def load_noiseless_prior(p: float) -> dict[tuple[str, int], Any]:
+def load_noiseless_prior(
+    p: float,
+    prior_cache_paths: tuple[Path, ...],
+) -> dict[tuple[str, int], Any]:
     prior: dict[tuple[str, int], Any] = {}
-    for path in [ERROR_FREE_REF_PATH, NOISELESS_CACHE_PATH]:
+    for path in prior_cache_paths:
         if not path.exists():
             continue
         with path.open("rb") as f:
@@ -159,25 +266,24 @@ def load_noiseless_prior(p: float) -> dict[tuple[str, int], Any]:
     return prior
 
 
-def load_error_free_refs(p_values: list[float]) -> dict[float, float]:
+def load_error_free_refs(
+    p_values: list[float],
+    reference_cache_paths: tuple[Path, ...],
+) -> dict[float, float]:
     refs: dict[float, float] = {}
-    if ERROR_FREE_REF_PATH.exists():
-        with ERROR_FREE_REF_PATH.open("rb") as f:
+    for path in reference_cache_paths:
+        if not path.exists():
+            continue
+        with path.open("rb") as f:
             ref_cache = pickle.load(f)
-        for point in ref_cache.get("points", {}).values():
-            p_ref = float(point["metrics"]["p"])
-            for p in p_values:
-                if abs(p_ref - float(p)) <= 1e-15:
-                    refs[float(p)] = float(point["metrics"]["GPG infidelity"])
-
-    missing = [float(p) for p in p_values if float(p) not in refs]
-    if missing:
-        with NOISELESS_CACHE_PATH.open("rb") as f:
-            old_cache = pickle.load(f)
-        old_points = list(old_cache["points"].values())
-        for p in missing:
-            nearest = min(old_points, key=lambda point: abs(float(point["metrics"]["p"]) - p))
-            refs[p] = float(nearest["metrics"]["GPG infidelity"])
+        points = list(ref_cache.get("points", {}).values())
+        for p in p_values:
+            if float(p) in refs or not points:
+                continue
+            nearest = min(points, key=lambda point: abs(float(point["metrics"]["p"]) - float(p)))
+            refs[float(p)] = float(nearest["metrics"]["GPG infidelity"])
+    for p in p_values:
+        refs.setdefault(float(p), float("nan"))
     return refs
 
 
@@ -228,13 +334,18 @@ def settings_for_attempt(
 
 def run_worker(config: dict[str, Any], attempt: int, seed_offset: int) -> dict[str, Any]:
     """Run one independent candidate attempt and write the point to a file."""
+    load_runtime_dependencies()
     try:
         num_qubits, rho, logical_kets, exact_ad, recovery_ops = bgm_problem()
-        with CACHE_PATH.open("rb") as f:
+        cache_path = Path(config["cache_path"])
+        with cache_path.open("rb") as f:
             cache = pickle.load(f)
-        key = cache_key(config["p"], config["cooperativity"])
+        key = config["target_cache_key"]
         old_point = cache["points"][key]
-        prior = load_noiseless_prior(config["p"])
+        prior = load_noiseless_prior(
+            config["p"],
+            tuple(Path(path) for path in config["prior_cache_paths"]),
+        )
         prior.update(old_point.get("pulse_sequences", {}))
 
         t0 = time.perf_counter()
@@ -298,14 +409,20 @@ def run_worker(config: dict[str, Any], attempt: int, seed_offset: int) -> dict[s
         }
 
 
-def save_cache(cache: dict[str, Any]) -> None:
-    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with CACHE_PATH.open("wb") as f:
+def save_cache(cache: dict[str, Any], cache_path: Path) -> None:
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with cache_path.open("wb") as f:
         pickle.dump(cache, f)
 
 
-def refresh_csv_and_plot(update_notebook_preview: bool) -> pd.DataFrame:
-    with CACHE_PATH.open("rb") as f:
+def refresh_csv_and_plot(
+    paths: ScriptPaths,
+    *,
+    plot_p_values: list[float],
+    plot_cooperativities: list[float],
+    update_notebook_preview: bool,
+) -> pd.DataFrame:
+    with paths.cache_path.open("rb") as f:
         cache = pickle.load(f)
 
     best_rows: dict[tuple[float, float], dict[str, Any]] = {}
@@ -315,9 +432,12 @@ def refresh_csv_and_plot(update_notebook_preview: bool) -> pd.DataFrame:
             continue
         p = float(metrics.get("p", float("nan")))
         cooperativity = float(metrics.get("GPG cooperativity", float("nan")))
-        if not any(abs(p - float(p0)) <= 1e-15 for p0 in PLOT_P_VALUES):
+        if not any(abs(p - float(p0)) <= 1e-15 for p0 in plot_p_values):
             continue
-        if not any(abs(cooperativity - float(c0)) <= max(1.0, 1e-12 * float(c0)) for c0 in PLOT_COOPERATIVITIES):
+        if not any(
+            abs(cooperativity - float(c0)) <= max(1.0, 1e-12 * float(c0))
+            for c0 in plot_cooperativities
+        ):
             continue
         group_key = (p, cooperativity)
         infidelity = float(metrics["GPG infidelity"])
@@ -329,18 +449,21 @@ def refresh_csv_and_plot(update_notebook_preview: bool) -> pd.DataFrame:
             row["cache_key"] = key
             best_rows[group_key] = row
 
+    if not best_rows:
+        raise RuntimeError("No detuned GPG cache rows matched --plot-p/--plot-c filters.")
+
     metrics = pd.DataFrame(best_rows.values()).sort_values(["p", "GPG cooperativity"]).reset_index(drop=True)
-    refs = load_error_free_refs(PLOT_P_VALUES)
+    refs = load_error_free_refs(plot_p_values, paths.reference_cache_paths)
     metrics["error-free GPG infidelity"] = metrics["p"].map(lambda value: refs[float(value)])
-    no_recovery_refs = no_recovery_infidelities(PLOT_P_VALUES)
+    no_recovery_refs = no_recovery_infidelities(plot_p_values)
     metrics["no recovery infidelity"] = metrics["p"].map(
         lambda value: no_recovery_refs[float(value)]
     )
 
-    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
-    metrics.to_csv(CSV_PATH, index=False)
+    paths.csv_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics.to_csv(paths.csv_path, index=False)
 
-    PLOT_DIR.mkdir(parents=True, exist_ok=True)
+    paths.plot_dir.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(4.2, 3.1), dpi=180)
     colors = {5e-4: "tab:blue", 1e-3: "tab:orange"}
     for p, group in metrics.groupby("p"):
@@ -355,14 +478,15 @@ def refresh_csv_and_plot(update_notebook_preview: bool) -> pd.DataFrame:
             color=color,
             label=rf"detuned GPG, $p={float(p):.0e}$",
         )
-        ax.axhline(
-            refs[float(p)],
-            color=color,
-            ls=":",
-            lw=1.2,
-            alpha=0.9,
-            label=rf"perfect-cavity GPG, $p={float(p):.0e}$",
-        )
+        if math.isfinite(refs[float(p)]):
+            ax.axhline(
+                refs[float(p)],
+                color=color,
+                ls=":",
+                lw=1.2,
+                alpha=0.9,
+                label=rf"perfect-cavity GPG, $p={float(p):.0e}$",
+            )
         ax.axhline(
             no_recovery_refs[float(p)],
             color=color,
@@ -376,20 +500,24 @@ def refresh_csv_and_plot(update_notebook_preview: bool) -> pd.DataFrame:
     ax.grid(True, which="both", ls=":", lw=0.55, alpha=0.65)
     ax.legend(frameon=True, fontsize=8)
     fig.tight_layout()
-    fig.savefig(PDF_PATH, bbox_inches="tight")
-    fig.savefig(PNG_PATH, bbox_inches="tight")
+    fig.savefig(paths.pdf_path, bbox_inches="tight")
+    fig.savefig(paths.png_path, bbox_inches="tight")
     plt.close(fig)
 
     if update_notebook_preview:
-        update_notebook_plot_preview(metrics)
+        update_notebook_plot_preview(metrics, paths.notebook_path, paths.png_path)
     return metrics
 
 
-def update_notebook_plot_preview(metrics: pd.DataFrame) -> None:
-    if not NOTEBOOK_PATH.exists() or not PNG_PATH.exists():
+def update_notebook_plot_preview(
+    metrics: pd.DataFrame,
+    notebook_path: Path | None,
+    png_path: Path,
+) -> None:
+    if notebook_path is None or not notebook_path.exists() or not png_path.exists():
         return
 
-    nb = json.loads(NOTEBOOK_PATH.read_text())
+    nb = json.loads(notebook_path.read_text())
     p5 = metrics[metrics["p"].sub(5e-4).abs() < 1e-15].copy()
     vals = {
         float(row["GPG cooperativity"]): float(row["GPG infidelity"])
@@ -407,16 +535,16 @@ def update_notebook_plot_preview(metrics: pd.DataFrame) -> None:
         f"- `C=1e9`: `{vals.get(1e9, float('nan')):.6e}`\n",
         f"- `C=1e10`: `{vals.get(1e10, float('nan')):.6e}`\n",
     ]
+    rel_plot_path = os.path.relpath(png_path, notebook_path.parent)
     preview_src = [
         "# Latest plot preview; no sweep is run in this cell.\n",
         "from pathlib import Path\n",
         "from IPython.display import Image, display\n",
         "\n",
-        "plot_path = Path('../../plots/AD/noisy_gpg_implementation/"
-        "detuned_usual_gpg_cooperativity_sweep.png')\n",
+        f"plot_path = Path({rel_plot_path!r})\n",
         "display(Image(filename=str(plot_path)))\n",
     ]
-    png_b64 = base64.b64encode(PNG_PATH.read_bytes()).decode("ascii")
+    png_b64 = base64.b64encode(png_path.read_bytes()).decode("ascii")
     preview_cell = {
         "cell_type": "code",
         "execution_count": None,
@@ -448,7 +576,7 @@ def update_notebook_plot_preview(metrics: pd.DataFrame) -> None:
             nb["cells"][i] = preview_cell
             break
 
-    NOTEBOOK_PATH.write_text(json.dumps(nb, indent=1))
+    notebook_path.write_text(json.dumps(nb, indent=1))
 
 
 def cleanup_candidates(results: list[dict[str, Any]], accepted_path: str | None, keep: bool) -> None:
@@ -466,6 +594,17 @@ def cleanup_candidates(results: list[dict[str, Any]], accepted_path: str | None,
 
 def main() -> None:
     args = parse_args()
+    paths = resolve_paths(args)
+    if not paths.cache_path.exists():
+        raise FileNotFoundError(
+            f"Cache file not found: {paths.cache_path}. "
+            "Pass --cache-path pointing to an existing detuned GPG sweep cache."
+        )
+    if args.update_notebook_preview and paths.notebook_path is None:
+        raise ValueError("--update-notebook-preview requires --notebook-path.")
+
+    load_runtime_dependencies()
+
     target_inf, target_eps = default_target_window(args.c)
     if args.target_inf is not None:
         target_inf = args.target_inf
@@ -473,17 +612,20 @@ def main() -> None:
         target_eps = args.target_eps
     threshold = None if target_inf is None else float(target_inf) + float(target_eps)
 
-    key = cache_key(args.p, args.c)
-    with CACHE_PATH.open("rb") as f:
+    key = cache_key(args.p, args.c, style=args.cache_key_style)
+    with paths.cache_path.open("rb") as f:
         cache = pickle.load(f)
     if key not in cache["points"]:
-        raise KeyError(f"No cached point for p={args.p:g}, C={args.c:g}")
+        raise KeyError(
+            f"No cached point for p={args.p:g}, C={args.c:g}. "
+            f"Looked for key {key!r} in {paths.cache_path}."
+        )
 
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    backup = CACHE_PATH.with_name(
-        CACHE_PATH.stem + f".before_parallel_search_{stamp}" + CACHE_PATH.suffix
+    backup = paths.cache_path.with_name(
+        paths.cache_path.stem + f".before_parallel_search_{stamp}" + paths.cache_path.suffix
     )
-    shutil.copy2(CACHE_PATH, backup)
+    shutil.copy2(paths.cache_path, backup)
     print(f"Backup: {backup}", flush=True)
     if threshold is None:
         print(f"No target window configured for C={args.c:g}.", flush=True)
@@ -501,16 +643,19 @@ def main() -> None:
         "restarts": int(args.restarts),
         "maxiter": int(args.maxiter),
         "extra_pulses": int(args.extra_pulses),
-        "candidate_dir": str(CANDIDATE_DIR),
+        "candidate_dir": str(paths.candidate_dir),
+        "cache_path": str(paths.cache_path),
+        "target_cache_key": key,
+        "prior_cache_paths": [str(path) for path in paths.prior_cache_paths],
     }
 
     accepted = 0
     attempts_done = 0
-    CANDIDATE_DIR.mkdir(parents=True, exist_ok=True)
+    paths.candidate_dir.mkdir(parents=True, exist_ok=True)
 
     with futures.ProcessPoolExecutor(max_workers=args.workers) as pool:
         while args.max_attempts is None or attempts_done < args.max_attempts:
-            with CACHE_PATH.open("rb") as f:
+            with paths.cache_path.open("rb") as f:
                 cache = pickle.load(f)
             old_point = cache["points"][key]
             old_inf = float(old_point["metrics"]["GPG infidelity"])
@@ -565,14 +710,19 @@ def main() -> None:
                 with Path(accepted_path).open("rb") as f:
                     best_point = pickle.load(f)
                 cache["points"][key] = best_point
-                save_cache(cache)
+                save_cache(cache, paths.cache_path)
                 accepted += 1
                 print(
                     f"ACCEPTED: {old_inf:.6e} -> {best['gpg_infidelity']:.6e} "
                     f"(attempt {best['attempt']})",
                     flush=True,
                 )
-                metrics = refresh_csv_and_plot(not args.no_notebook_preview)
+                metrics = refresh_csv_and_plot(
+                    paths,
+                    plot_p_values=[float(p) for p in args.plot_p],
+                    plot_cooperativities=[float(c) for c in args.plot_c],
+                    update_notebook_preview=args.update_notebook_preview,
+                )
                 print(
                     metrics[
                         [

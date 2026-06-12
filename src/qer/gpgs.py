@@ -1,15 +1,13 @@
 """
 Geometric-phase gate (GPG) utilities in the symmetric Dicke basis.
 
-This module ports the core MATLAB pulse convention used in
-``state_prepe_gpg.m`` and ``value_err_H.m``:
+The pulse convention used throughout the package is
 
     per pulse: U_n = Rz(alpha_n) Ry(beta_n) Rz(gamma_n) G(kappa_n)
 
 where the state is stored in Dicke-weight order ``|D_0^N>, ..., |D_N^N>`` and
 the corresponding spin labels are ``m = -N/2, ..., N/2``. The default
-reference state is therefore ``|D_0^N>`` / ``m=-N/2``, matching the MATLAB
-``Psi(1)=1`` convention.
+reference state is therefore ``|D_0^N>`` / ``m=-N/2``.
 """
 
 from __future__ import annotations
@@ -706,14 +704,19 @@ def load_gpg_sweep_cache(path: str | Path) -> dict[str, Any]:
     import pickle
 
     with Path(path).open("rb") as f:
-        return pickle.load(f)
+        cache = pickle.load(f)
+    if not isinstance(cache, dict) or "points" not in cache:
+        raise ValueError(f"{path} does not look like a GPG sweep cache.")
+    return cache
 
 
 def save_gpg_sweep_cache(cache: dict[str, Any], path: str | Path) -> None:
     """Write a pickled GPG sweep cache."""
     import pickle
 
-    with Path(path).open("wb") as f:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as f:
         pickle.dump(cache, f)
 
 
@@ -735,7 +738,14 @@ def gpg_sweep_rows(cache: dict[str, Any]):
     """Return a ``p``-sorted DataFrame of sweep metrics."""
     import pandas as pd
 
-    return pd.DataFrame([pt["metrics"] for pt in cache["points"].values()]).sort_values("p")
+    points = cache.get("points", {})
+    rows = [pt["metrics"] for pt in points.values() if "metrics" in pt]
+    if not rows:
+        raise ValueError("GPG sweep cache does not contain any point metrics.")
+    df = pd.DataFrame(rows)
+    if "p" not in df.columns:
+        raise ValueError("GPG sweep metrics must include a 'p' column.")
+    return df.sort_values("p").reset_index(drop=True)
 
 
 def default_spike_points(cache: dict[str, Any], min_penalty: float) -> list[float]:

@@ -1,3 +1,40 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "qer"
+version = "0.1.0"
+description = "Quantum error recovery utilities for permutation-invariant code calculations."
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = [
+    "quantum-error-correction",
+    "quantum-error-recovery",
+    "permutation-invariant-codes",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "cvxpy",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "qutip",
+    "scipy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

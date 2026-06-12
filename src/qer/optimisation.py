@@ -1,7 +1,7 @@
+import cvxpy as cp
 import numpy as np
 import qutip
-import cvxpy as cp
-from typing import Union, Optional, List, Dict, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 
 def partial_trace_out_choi(Xmat, d_out, d_in):
@@ -39,11 +39,44 @@ def _get_cached_sdp(d: int) -> Tuple[cp.Problem, cp.Parameter, cp.Variable]:
     return prob, Cparam, X
 
 
+def _normalise_solver(solver: Union[str, object, None]) -> object | None:
+    """Return a CVXPY solver identifier from a public string alias."""
+    if solver is None:
+        return None
+    if not isinstance(solver, str):
+        return solver
+
+    solver_name = solver.strip().lower()
+    solver_map = {
+        "scs": cp.SCS,
+        "clarabel": getattr(cp, "CLARABEL", "CLARABEL"),
+        "mosek": cp.MOSEK,
+    }
+    if solver_name not in solver_map:
+        supported = ", ".join(sorted(solver_map))
+        raise ValueError(f"Unsupported solver string '{solver}'. Use one of: {supported}.")
+    return solver_map[solver_name]
+
+
+def _solver_name(solver: object | None) -> str | None:
+    if solver is None:
+        return None
+    return str(solver).upper()
+
+
+def _solver_options(solver: object | None, solver_opts: Optional[dict]) -> dict:
+    """Merge public-friendly defaults with user-provided CVXPY solver options."""
+    opts = dict(solver_opts or {})
+    if _solver_name(solver) == "SCS":
+        opts.setdefault("eps", 1e-7)
+    return opts
+
+
 def optimise(
     logical0: qutip.Qobj,
     logical1: qutip.Qobj,
     noise: Union[List[qutip.Qobj], qutip.Qobj],
-    solver: Union[str, object] = "mosek",
+    solver: Union[str, object, None] = "scs",
     rho_L: Optional[np.ndarray] = None,
     warm_start: bool = True,
     solver_opts: Optional[dict] = None,
@@ -51,34 +84,24 @@ def optimise(
     """
     Optimise recovery via SDP with CVXPY problem reuse (Parameterized objective).
 
-    `noise` can be:
+    ``noise`` can be:
       - list[Qobj] : Kraus operators for d->d
       - Qobj       : Choi matrix for d->d
 
+    The default solver is SCS, which is free and installed through CVXPY in many
+    environments. Pass ``solver="mosek"`` to opt into MOSEK when it is installed
+    and licensed locally.
+
     Returns optimal objective value (float).
     """
-    # --- solver handling ---
-    if isinstance(solver, str):
-        solver_name = solver.strip().lower()
-        solver_map = {
-            "scs": cp.SCS,
-            "mosek": cp.MOSEK,
-        }
-        solver = solver_map.get(solver_name, None)
-        if solver is None:
-            raise ValueError(f"Unsupported solver string '{solver}'. Use 'scs' or 'mosek'.")
-
-    if solver_opts is None:
-        solver_opts = {}
+    solver = _normalise_solver(solver)
+    solver_opts = _solver_options(solver, solver_opts)
 
     # --- dimensions and encoder ---
     d = logical0.shape[0]
     ket0 = qutip.basis(2, 0)
     ket1 = qutip.basis(2, 1)
     Uc = logical0 * ket0.dag() + logical1 * ket1.dag()  # (d x 2)
-
-    #---setting numerical precision for sdp---#
-    solver_opts = {**solver_opts, "eps": 1e-9}
 
     if rho_L is None:
         rho_L = np.eye(2) / 2
@@ -131,10 +154,6 @@ def optimise(
     return float(prob.value)
 
 
-# entanglement fidelity without optimisation
-import numpy as np
-import qutip as qt
-
 def no_recovery(rho, noise):
     """
     Entanglement fidelity with NO recovery.
@@ -169,7 +188,7 @@ def no_recovery(rho, noise):
         raise ValueError(f"Choi matrix must be square with dimension d^2 x d^2, got {Jm.shape}")
 
     w, v = np.linalg.eigh(Jm)
-    rho_m = rho.full() if isinstance(rho, qt.Qobj) else np.asarray(rho, dtype=np.complex128)
+    rho_m = rho.full() if isinstance(rho, qutip.Qobj) else np.asarray(rho, dtype=np.complex128)
     if rho_m.shape != (d, d):
         raise ValueError(f"rho must be shape ({d}, {d}), got {rho_m.shape}")
 

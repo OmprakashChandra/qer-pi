@@ -10,11 +10,18 @@ during the project.
 ## Repository Map
 
 - `src/qer/`: public Python package. New code should import from `qer.*`.
+- `examples/`: clean notebooks for first-time users.
 - `scripts/`: long-running helper scripts used to generate or refine
-  GPG pulse-search data.
-- `notebooks/`: exploratory and figure-generation notebooks.
-- `datas/`: tracked CSV summaries and pulse-sequence data.
-- `plots/`: generated figures, including paper-ready outputs.
+  GPG pulse-search data. These scripts are cache-driven and require explicit
+  `--cache-path` inputs.
+- `notebooks/stale/`: archived exploratory notebooks kept for provenance.
+- `tests/`: lightweight release sanity checks.
+- `docs/`: usage notes, data notes, and release checklist.
+- `datas/final_gpg_pulses/`: final detuned GPG pulse data used for the paper
+  figure; pulse rows contain `alpha`, `beta`, `gamma`, `kappa`, and
+  `detuning`.
+- `plots/final_paper/`: paper-ready figure exports.
+- `plots/other_plots/`: archived exploratory and intermediate plot outputs.
 - `other/`: supplementary source files that are not part of the Python package.
 
 ## Python Installation
@@ -29,6 +36,13 @@ python -m pip install -e .
 ```
 
 The package targets Python 3.10+ and was developed with Python 3.12.
+
+## Examples
+
+Clean starting-point notebooks are in `examples/`:
+
+- `examples/basic_recovery.ipynb`
+- `examples/load_final_gpg_pulses.ipynb`
 
 ## Quick Start
 
@@ -59,18 +73,36 @@ Solver installations and license files are intentionally not tracked in this
 repository. The default quick-start example uses SCS through CVXPY. MOSEK is
 optional and requires a local MOSEK installation and license.
 
+The `qer.optimisation.optimise` helper defaults to `solver="scs"` for a free
+out-of-the-box solver. Use `solver="mosek"` only when MOSEK is installed and
+licensed locally.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests
+```
+
+Some tests skip automatically if optional scientific dependencies are not
+installed in the active environment.
+
 ## Data And Outputs
 
-The tracked CSV files and pulse sequences under `datas/` are intended to be
-reusable without rerunning the expensive searches. Large intermediate caches and
-parallel-search scratch files are ignored by Git.
+The public data payload is `datas/final_gpg_pulses/`. It contains the selected
+detuned noisy-GPG pulse sequences used for the paper figure. Each pulse has the
+five parameters `alpha`, `beta`, `gamma`, `kappa`, and `detuning`.
 
-The `plots/final_paper/` directory contains the most stable paper-facing figure
-exports. Other plot folders contain exploratory or intermediate outputs retained
-for reproducibility.
+Older sweep caches, intermediate amplitude-damping result tables, and exploratory
+pulse-search outputs are intentionally not part of this release branch.
+
+The `plots/final_paper/` directory contains the stable paper-facing figure
+exports. Exploratory and intermediate plots are retained under
+`plots/other_plots/` so they do not crowd the public-facing figure set.
 
 ## Release Notes
 
 This branch is being prepared as the public release branch. Before final public
 release, add a project license and a paper citation once the final citation text
 is available.
+
+See `docs/release_checklist.md` for the remaining release checks.
