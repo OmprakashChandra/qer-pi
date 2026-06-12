@@ -1,4 +1,3 @@
-% filepath: /Users/a46668993/Desktop/qer/codes/collective_apply_local_noise.m
 function rho_out = collective_apply_local_noise(rho_c, model, param)
 %COLLECTIVE_APPLY_LOCAL_NOISE  Apply identical local (permutation-covariant) noise
 %to a PI/collective-state density operator represented as blocks over J irreps.
