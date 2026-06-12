@@ -13,14 +13,14 @@ import pandas as pd
 
 SCRIPT_PATH = Path(__file__).resolve()
 REPO_ROOT = next(
-    p for p in [SCRIPT_PATH.parent, *SCRIPT_PATH.parents] if (p / "python" / "codes").exists()
+    p for p in [SCRIPT_PATH.parent, *SCRIPT_PATH.parents] if (p / "src" / "qer").exists()
 )
-sys.path.insert(0, str(REPO_ROOT / "python"))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from codes import gpgs  # noqa: E402
-from codes.bk_recovery import petz_recovery_kraus  # noqa: E402
-from codes.codewords import bgmcode_kets_in_top_block  # noqa: E402
-from codes.noisemodel import noisemodel  # noqa: E402
+from qer import gpgs  # noqa: E402
+from qer.bk_recovery import petz_recovery_kraus  # noqa: E402
+from qer.codewords import bgmcode_kets_in_top_block  # noqa: E402
+from qer.noisemodel import noisemodel  # noqa: E402
 
 
 SWEEP_CACHE_PATH = (

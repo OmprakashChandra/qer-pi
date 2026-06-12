@@ -24,9 +24,9 @@ from typing import Any
 
 SCRIPT_PATH = Path(__file__).resolve()
 REPO_ROOT = next(
-    p for p in [SCRIPT_PATH.parent, *SCRIPT_PATH.parents] if (p / "python" / "codes").exists()
+    p for p in [SCRIPT_PATH.parent, *SCRIPT_PATH.parents] if (p / "src" / "qer").exists()
 )
-sys.path.insert(0, str(REPO_ROOT / "python"))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 os.environ.setdefault("MPLBACKEND", "Agg")
 os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/mpl")
@@ -35,11 +35,11 @@ Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from codes import gpgs  # noqa: E402
-from codes.bk_recovery import petz_recovery_kraus  # noqa: E402
-from codes.codewords import bgmcode_kets_in_top_block  # noqa: E402
-from codes.noisemodel import noisemodel  # noqa: E402
-from codes.optimisation import no_recovery  # noqa: E402
+from qer import gpgs  # noqa: E402
+from qer.bk_recovery import petz_recovery_kraus  # noqa: E402
+from qer.codewords import bgmcode_kets_in_top_block  # noqa: E402
+from qer.noisemodel import noisemodel  # noqa: E402
+from qer.optimisation import no_recovery  # noqa: E402
 
 
 CACHE_PATH = (
@@ -68,7 +68,7 @@ ERROR_FREE_REF_PATH = (
     / "cache"
     / "error_free_usual_gpg_refs_p5e-4_p1e-3.pkl"
 )
-NOTEBOOK_PATH = REPO_ROOT / "python" / "notebooks" / "improving_noisy_gpg.ipynb"
+NOTEBOOK_PATH = REPO_ROOT / "notebooks" / "improving_noisy_gpg.ipynb"
 CANDIDATE_DIR = CACHE_PATH.parent / "parallel_candidates"
 
 PLOT_P_VALUES = [5e-4, 1e-3]

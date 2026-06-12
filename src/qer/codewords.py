@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import math
 import numpy as np
-from typing import Tuple, List
+from typing import List, Optional, Tuple
 import qutip
 
 
@@ -444,11 +444,6 @@ def seven_qubit_piqs(*, return_qutip: bool = True):
 # ============================================================
 # Gross 13-qubit code (top block dim 14, reduced dim 56)
 # ============================================================
-
-import numpy as np
-import math
-import qutip
-from typing import Tuple
 
 def gross_13_kets_in_top_block(phi: float = 0.0) -> Tuple[np.ndarray, np.ndarray, int]:
     """
