@@ -1,3 +1,11 @@
+"""SDP-based recovery optimization helpers.
+
+This module contains the CVXPY semidefinite program used to optimize a
+recovery channel for a two-dimensional logical code. The default solver is the
+free SCS solver; MOSEK can be selected explicitly when it is installed and
+licensed on the user's machine.
+"""
+
 import cvxpy as cp
 import numpy as np
 import qutip
@@ -5,7 +13,23 @@ from typing import Dict, List, Optional, Tuple, Union
 
 
 def partial_trace_out_choi(Xmat, d_out, d_in):
-    """Sum diagonal blocks to trace out the output system of a Choi matrix."""
+    """
+    Trace out the output system of a Choi matrix expression.
+
+    Parameters
+    ----------
+    Xmat : array-like or cvxpy.Expression
+        Choi matrix or CVXPY matrix expression with block size ``d_in``.
+    d_out : int
+        Output Hilbert-space dimension.
+    d_in : int
+        Input Hilbert-space dimension.
+
+    Returns
+    -------
+    array-like or cvxpy.Expression
+        Partial trace over the output system, with shape ``(d_in, d_in)``.
+    """
     return sum(
         Xmat[a * d_in:(a + 1) * d_in, a * d_in:(a + 1) * d_in]
         for a in range(d_out)
@@ -18,7 +42,17 @@ _SDP_CACHE: Dict[int, Tuple[cp.Problem, cp.Parameter, cp.Variable]] = {}
 
 def _get_cached_sdp(d: int) -> Tuple[cp.Problem, cp.Parameter, cp.Variable]:
     """
-    Create and cache the CVXPY problem once per d, with C as a Parameter.
+    Return a cached recovery SDP for one physical dimension.
+
+    Parameters
+    ----------
+    d : int
+        Physical Hilbert-space dimension.
+
+    Returns
+    -------
+    tuple[cvxpy.Problem, cvxpy.Parameter, cvxpy.Variable]
+        CVXPY problem, objective matrix parameter, and Choi variable.
     """
     if d in _SDP_CACHE:
         return _SDP_CACHE[d]
@@ -40,7 +74,20 @@ def _get_cached_sdp(d: int) -> Tuple[cp.Problem, cp.Parameter, cp.Variable]:
 
 
 def _normalise_solver(solver: Union[str, object, None]) -> object | None:
-    """Return a CVXPY solver identifier from a public string alias."""
+    """
+    Convert a public solver alias into a CVXPY solver identifier.
+
+    Parameters
+    ----------
+    solver : str or object or None
+        Solver alias such as ``"scs"``, ``"clarabel"``, or ``"mosek"``;
+        a CVXPY solver object; or ``None`` to let CVXPY choose.
+
+    Returns
+    -------
+    object or None
+        CVXPY solver identifier, original solver object, or ``None``.
+    """
     if solver is None:
         return None
     if not isinstance(solver, str):
@@ -59,13 +106,40 @@ def _normalise_solver(solver: Union[str, object, None]) -> object | None:
 
 
 def _solver_name(solver: object | None) -> str | None:
+    """
+    Return a normalized display name for a CVXPY solver identifier.
+
+    Parameters
+    ----------
+    solver : object or None
+        CVXPY solver identifier.
+
+    Returns
+    -------
+    str or None
+        Uppercase solver name, or ``None`` when no solver is specified.
+    """
     if solver is None:
         return None
     return str(solver).upper()
 
 
 def _solver_options(solver: object | None, solver_opts: Optional[dict]) -> dict:
-    """Merge public-friendly defaults with user-provided CVXPY solver options."""
+    """
+    Merge default solver options with user-provided options.
+
+    Parameters
+    ----------
+    solver : object or None
+        CVXPY solver identifier.
+    solver_opts : dict or None
+        User-provided solver keyword arguments.
+
+    Returns
+    -------
+    dict
+        Solver options passed to ``Problem.solve``.
+    """
     opts = dict(solver_opts or {})
     if _solver_name(solver) == "SCS":
         opts.setdefault("eps", 1e-7)
@@ -82,17 +156,32 @@ def optimise(
     solver_opts: Optional[dict] = None,
 ) -> float:
     """
-    Optimise recovery via SDP with CVXPY problem reuse (Parameterized objective).
-
-    ``noise`` can be:
-      - list[Qobj] : Kraus operators for d->d
-      - Qobj       : Choi matrix for d->d
+    Optimize the best recovery fidelity for a two-dimensional logical code.
 
     The default solver is SCS, which is free and installed through CVXPY in many
     environments. Pass ``solver="mosek"`` to opt into MOSEK when it is installed
     and licensed locally.
 
-    Returns optimal objective value (float).
+    Parameters
+    ----------
+    logical0, logical1 : qutip.Qobj
+        Logical code kets embedded in the physical Hilbert space.
+    noise : list[qutip.Qobj] or qutip.Qobj
+        Noise channel as Kraus operators or as a Choi matrix.
+    solver : str or object or None, default="scs"
+        CVXPY solver alias or solver identifier.
+    rho_L : numpy.ndarray or None, optional
+        Two-by-two logical input density matrix. If omitted, the maximally
+        mixed logical state is used.
+    warm_start : bool, default=True
+        Whether to warm-start the cached CVXPY solve.
+    solver_opts : dict or None, optional
+        Extra keyword arguments passed to ``Problem.solve``.
+
+    Returns
+    -------
+    float
+        Optimal SDP objective value.
     """
     solver = _normalise_solver(solver)
     solver_opts = _solver_options(solver, solver_opts)
@@ -156,17 +245,22 @@ def optimise(
 
 def no_recovery(rho, noise):
     """
-    Entanglement fidelity with NO recovery.
+    Compute entanglement fidelity without applying a recovery channel.
 
-    If noise is:
-      - list / tuple of Qobj  -> interpreted as Kraus operators {E_k}
-      - Qobj                 -> interpreted as Choi matrix J (d^2 x d^2)
+    The noise channel may be supplied as Kraus operators or as a Choi matrix
+    using the unnormalized Choi convention.
 
-    Choi convention:
-      J = (I ⊗ E)(|Ω⟩⟨Ω|),  |Ω⟩ = Σ_i |i⟩⊗|i⟩  (unnormalized)
+    Parameters
+    ----------
+    rho : qutip.Qobj or array-like
+        Reference density matrix.
+    noise : list[qutip.Qobj] or tuple[qutip.Qobj] or qutip.Qobj
+        Noise channel as Kraus operators or as a Choi matrix.
 
-    Returns:
-      float entanglement fidelity
+    Returns
+    -------
+    float
+        Entanglement fidelity with no recovery applied.
     """
 
     # --- Kraus branch ---

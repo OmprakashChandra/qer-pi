@@ -9,6 +9,12 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
+To run the notebooks in `examples/`, install the notebook extra:
+
+```bash
+python -m pip install -e ".[examples]"
+```
+
 The main public modules are:
 
 - `qer.codewords`: permutation-invariant code constructors.
@@ -20,7 +26,7 @@ The main public modules are:
 The default optimization solver is SCS through CVXPY. MOSEK remains optional:
 use `solver="mosek"` only when it is installed and licensed locally.
 
-For notebooks, start with:
+For examples, start with:
 
 - `examples/basic_recovery.ipynb`
 - `examples/load_final_gpg_pulses.ipynb`

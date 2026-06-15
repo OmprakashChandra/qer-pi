@@ -1,9 +1,37 @@
+"""Noise-channel constructors in the PIQS reduced Dicke basis.
+
+The public :func:`noisemodel` helper builds common permutation-invariant noise
+channels for ``num_qubits`` physical qubits and returns the channel as Kraus
+operators, a Choi matrix, or a superoperator. Exact channels are generated from
+QuTiP/PIQS Lindbladians. The approximate Kraus dynamics are currently only
+implemented for global symmetric amplitude damping.
+"""
+
+from __future__ import annotations
+
+from typing import List
+
 import numpy as np
-import qutip
-from qutip.piqs.piqs import*
-from qutip import*
-from typing import List, Union
+import qutip as qt
 import qutip.piqs as piqs
+
+
+__all__ = ["noisemodel"]
+
+SUPPORTED_NOISE_TYPES = (
+    "global symmetric depolarizing",
+    "local symmetric depolarizing",
+    "global symmetric amplitude damping",
+    "local symmetric amplitude damping",
+)
+SUPPORTED_RETURN_REPS = ("kraus", "choi", "super")
+FIRST_ORDER_DYNAMICS_ALIASES = {
+    "first order ad",
+    "first-order ad",
+    "first_order_ad",
+    "first order",
+    "first",
+}
 
 
 def noisemodel(
@@ -11,44 +39,62 @@ def noisemodel(
     num_qubits: int,
     gamma: float,
     dt: float,
-    return_rep: str = "kraus",  # "kraus" | "choi" | "super"
-    dynamics: str = "exact",    # "exact" | "approx" | "first order AD"
+    return_rep: str = "kraus",
+    dynamics: str = "exact",
 ):
     """
-    Generate a quantum noise channel in PIQS and return either Kraus operators,
-    the Choi matrix, or the superoperator.
+    Build a PIQS reduced-space noise channel.
+
+    Supported channels are:
+
+    - ``"global symmetric depolarizing"``: collective emission, pumping, and
+      dephasing rates all set to ``gamma``.
+    - ``"local symmetric depolarizing"``: local emission, pumping, and
+      dephasing rates all set to ``gamma``.
+    - ``"global symmetric amplitude damping"``: collective emission rate
+      ``gamma``.
+    - ``"local symmetric amplitude damping"``: local emission rate ``gamma``.
+
+    The exact dynamics use the PIQS Lindbladian map ``exp(L * dt)``. Approximate
+    Kraus dynamics are available only for global symmetric amplitude damping.
 
     Parameters
     ----------
     noise_type : str
-        Supported: 'global symmetric depolarizing', 'local symmetric depolarizing', 'global symmetric amplitude damping', 'local symmetric amplitude damping'
+        One of the supported channel names listed above. Matching is
+        case-insensitive and ignores leading/trailing spaces.
     num_qubits : int
-        Number of qubits.
+        Number of physical qubits in the PIQS model.
     gamma : float
-        Noise rate parameter.
+        Non-negative noise-rate parameter.
     dt : float
-        Time step.
+        Non-negative evolution time.
     return_rep : str
-        'kraus' -> list of Kraus operators (slow: Choi eigen-decomposition)
-        'choi'  -> Choi matrix (fast)
-        'super' -> superoperator
+        Output representation:
+
+        - ``"kraus"``: list of Kraus operators. For exact channels this is the
+          slowest option because it diagonalizes the Choi matrix.
+        - ``"choi"``: Choi matrix.
+        - ``"super"``: superoperator.
+
     dynamics : str
-        'exact'          -> use the exact PIQS Lindbladian dynamics exp(L t)
-        'approx'         -> use the second-order Kraus approximation from Eq. 16.
-        'first order AD' -> use the first-order Kraus approximation to global
-                            symmetric amplitude damping. Approximate dynamics
-                            are currently only supported for global symmetric
-                            amplitude damping.
+        Dynamics model:
+
+        - ``"exact"``: PIQS Lindbladian dynamics ``exp(L * dt)``.
+        - ``"approx"``: second-order Kraus approximation for global symmetric
+          amplitude damping.
+        - ``"first order AD"``: first-order Kraus approximation for global
+          symmetric amplitude damping.
 
     Returns
     -------
-    If return_rep == 'kraus': list[qutip.Qobj]
-    If return_rep == 'choi' : qutip.Qobj
-    If return_rep == 'super': qutip.Qobj
+    list[qutip.Qobj] or qutip.Qobj
+        The requested channel representation.
     """
-    noise_type = noise_type.lower().strip()
-    return_rep = return_rep.lower().strip()
-    dynamics = dynamics.lower().strip()
+    noise_type = _normalise_noise_type(noise_type)
+    return_rep = _normalise_return_rep(return_rep)
+    dynamics = _normalise_dynamics(dynamics)
+    num_qubits = _validate_channel_parameters(num_qubits, gamma, dt)
 
     if noise_type == "global symmetric depolarizing":
         _require_exact_dynamics(noise_type, dynamics)
@@ -58,18 +104,49 @@ def noisemodel(
         _require_exact_dynamics(noise_type, dynamics)
         return _local_symmetric_depolarizing(num_qubits, gamma, dt, return_rep)
 
-    if noise_type == "global symmetric amplitude damping": 
+    if noise_type == "global symmetric amplitude damping":
         return _global_symmetric_amplitude_damping(num_qubits, gamma, dt, return_rep, dynamics)
 
     if noise_type == "local symmetric amplitude damping":
         _require_exact_dynamics(noise_type, dynamics)
         return _local_symmetric_amplitude_damping(num_qubits, gamma, dt, return_rep)
 
-    raise ValueError(
-        "Unsupported noise type. Supported types: "
-        "'global symmetric depolarizing', 'local symmetric depolarizing', "
-        "'global symmetric amplitude damping', 'local symmetric amplitude damping'."
-    )
+    raise AssertionError(f"Unhandled noise type: {noise_type}")
+
+
+def _normalise_noise_type(noise_type: str) -> str:
+    value = noise_type.lower().strip()
+    if value not in SUPPORTED_NOISE_TYPES:
+        supported = "', '".join(SUPPORTED_NOISE_TYPES)
+        raise ValueError(f"Unsupported noise_type='{noise_type}'. Use one of: '{supported}'.")
+    return value
+
+
+def _normalise_return_rep(return_rep: str) -> str:
+    value = return_rep.lower().strip()
+    if value not in SUPPORTED_RETURN_REPS:
+        supported = "', '".join(SUPPORTED_RETURN_REPS)
+        raise ValueError(f"return_rep must be one of: '{supported}'.")
+    return value
+
+
+def _normalise_dynamics(dynamics: str) -> str:
+    value = dynamics.lower().strip()
+    if value in FIRST_ORDER_DYNAMICS_ALIASES:
+        return "first order ad"
+    if value not in ("exact", "approx"):
+        raise ValueError("dynamics must be 'exact', 'approx', or 'first order AD'.")
+    return value
+
+
+def _validate_channel_parameters(num_qubits: int, gamma: float, dt: float) -> int:
+    if int(num_qubits) != num_qubits or num_qubits < 1:
+        raise ValueError("num_qubits must be a positive integer.")
+    if gamma < 0:
+        raise ValueError("gamma must be non-negative.")
+    if dt < 0:
+        raise ValueError("dt must be non-negative.")
+    return int(num_qubits)
 
 
 def _require_exact_dynamics(noise_type: str, dynamics: str):
@@ -81,21 +158,36 @@ def _require_exact_dynamics(noise_type: str, dynamics: str):
         )
 
 
-def _return_from_kraus(kraus: List[qutip.Qobj], return_rep: str):
+def _return_from_kraus(kraus: List[qt.Qobj], return_rep: str):
     if return_rep == "kraus":
         return kraus
     if return_rep == "choi":
-        return qutip.kraus_to_choi(kraus)
+        return qt.kraus_to_choi(kraus)
     if return_rep == "super":
-        return qutip.kraus_to_super(kraus)
-    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+        return qt.kraus_to_super(kraus)
+    raise AssertionError(f"Unhandled return_rep: {return_rep}")
+
+
+def _return_from_superoperator(superoperator: qt.Qobj, return_rep: str):
+    if return_rep == "super":
+        return superoperator
+
+    choi = qt.to_choi(superoperator)
+    if return_rep == "choi":
+        return choi
+
+    if return_rep == "kraus":
+        d = int(np.sqrt(superoperator.shape[0]))
+        return _kraus_from_choi(choi, d_out=d, d_in=d)
+
+    raise AssertionError(f"Unhandled return_rep: {return_rep}")
 
 
 def _global_symmetric_amplitude_damping_approx_kraus(
     num_qubits: int,
     gamma: float,
     dt: float,
-) -> List[qutip.Qobj]:
+) -> List[qt.Qobj]:
     """
     Eq. 16 second-order Kraus approximation for global symmetric amplitude damping.
 
@@ -110,7 +202,7 @@ def _global_symmetric_amplitude_damping_approx_kraus(
 
     Jm = piqs.jspin(num_qubits, "-", basis="dicke")
     Jp = Jm.dag()
-    ident = qutip.qeye(Jm.dims[0])
+    ident = qt.qeye(Jm.dims[0])
     Nop = Jp * Jm
 
     K0 = ident - (alpha / 2) * Nop + (alpha**2 / 8) * (Nop * Nop)
@@ -126,7 +218,7 @@ def _global_symmetric_amplitude_damping_first_order_kraus(
     num_qubits: int,
     gamma: float,
     dt: float,
-) -> List[qutip.Qobj]:
+) -> List[qt.Qobj]:
     """
     First-order Kraus approximation for global symmetric amplitude damping.
 
@@ -145,7 +237,7 @@ def _global_symmetric_amplitude_damping_first_order_kraus(
 
     Jm = piqs.jspin(num_qubits, "-", basis="dicke")
     Jp = Jm.dag()
-    ident = qutip.qeye(Jm.dims[0])
+    ident = qt.qeye(Jm.dims[0])
     Nop = Jp * Jm
 
     K0 = ident - (alpha / 2) * Nop
@@ -155,53 +247,26 @@ def _global_symmetric_amplitude_damping_first_order_kraus(
 
 
 def _global_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float, return_rep: str):
-    """Global symmetric depolarizing-like noise using PIQS collective rates."""
-    system = Dicke(num_qubits)
-    system.collective_emission  = gamma
-    system.collective_pumping   = gamma
+    """Collective PIQS emission, pumping, and dephasing at equal rates."""
+    system = piqs.Dicke(num_qubits)
+    system.collective_emission = gamma
+    system.collective_pumping = gamma
     system.collective_dephasing = gamma
 
     L = system.liouvillian()
-    E = (L * dt).expm()  # superoperator for the CPTP map
-
-    if return_rep == "super":
-        return E
-
-    choi = to_choi(E)
-
-    if return_rep == "choi":
-        return choi
-
-    if return_rep == "kraus":
-        d = int(np.sqrt(L.shape[0]))  # since L is d^2 x d^2
-        return _kraus_from_choi(choi, d_out=d, d_in=d)
-
-    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+    return _return_from_superoperator((L * dt).expm(), return_rep)
 
 
 def _local_symmetric_depolarizing(num_qubits: int, gamma: float, dt: float, return_rep: str):
-    """Local symmetric depolarizing-like noise using PIQS local rates."""
-    system = Dicke(num_qubits)
-    system.emission  = gamma
-    system.pumping   = gamma
+    """Local PIQS emission, pumping, and dephasing at equal rates."""
+    system = piqs.Dicke(num_qubits)
+    system.emission = gamma
+    system.pumping = gamma
     system.dephasing = gamma
 
     L = system.liouvillian()
-    E = (L * dt).expm()
+    return _return_from_superoperator((L * dt).expm(), return_rep)
 
-    if return_rep == "super":
-        return E
-
-    choi = to_choi(E)
-
-    if return_rep == "choi":
-        return choi
-
-    if return_rep == "kraus":
-        d = int(np.sqrt(L.shape[0]))
-        return _kraus_from_choi(choi, d_out=d, d_in=d)
-
-    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
 
 def _global_symmetric_amplitude_damping(
     num_qubits: int,
@@ -209,9 +274,9 @@ def _global_symmetric_amplitude_damping(
     dt: float,
     return_rep: str,
     dynamics: str = "exact",
-): 
-    """ generates a superoperator corresponding to Lindbladian with jump operator J_ = J_x - iJ_y, where Jx and Jy are the collective spin operators of N+1 dimensions. """
-    if dynamics in ("first order ad", "first-order ad", "first_order_ad", "first order", "first"):
+):
+    """Global amplitude damping with collective lowering jump operator J_-."""
+    if dynamics == "first order ad":
         kraus = _global_symmetric_amplitude_damping_first_order_kraus(num_qubits, gamma, dt)
         return _return_from_kraus(kraus, return_rep)
 
@@ -219,42 +284,21 @@ def _global_symmetric_amplitude_damping(
         kraus = _global_symmetric_amplitude_damping_approx_kraus(num_qubits, gamma, dt)
         return _return_from_kraus(kraus, return_rep)
 
-    if dynamics != "exact":
-        raise ValueError("dynamics must be 'exact', 'approx', or 'first order AD'.")
-
-    system = Dicke(num_qubits)
+    system = piqs.Dicke(num_qubits)
     system.collective_emission = gamma
     L = system.liouvillian()
-    E = (L * dt).expm()    
-    if return_rep == "super":
-        return E 
-    if return_rep == "choi":
-        choi = to_choi(E) 
-        return choi
-    if return_rep == "kraus": 
-        d = int(np.sqrt(L.shape[0]))
-        choi = to_choi(E)
-        return _kraus_from_choi(choi, d_out = d, d_in = d)
-    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+    return _return_from_superoperator((L * dt).expm(), return_rep)
+
 
 def _local_symmetric_amplitude_damping(num_qubits: int, gamma: float, dt: float, return_rep: str):
-    """ generates a superoperator corresponding to Lindbladian with jump operators J_-^(i) = sigma_-^(i) for i=1,...,N, where sigma_-^(i) is the lowering operator on the i-th qubit. """
-    system = Dicke(num_qubits)
+    """Local amplitude damping with single-qubit lowering jumps sigma_-^(i)."""
+    system = piqs.Dicke(num_qubits)
     system.emission = gamma
     L = system.liouvillian()
-    E = (L * dt).expm()    
-    if return_rep == "super":
-        return E 
-    choi = to_choi(E)
-    if return_rep == "choi": 
-        return choi
-    if return_rep == "kraus": 
-        d = int(np.sqrt(L.shape[0]))
-        return _kraus_from_choi(choi, d_out = d, d_in = d)
-    raise ValueError("return_rep must be 'kraus', 'choi', or 'super'.")
+    return _return_from_superoperator((L * dt).expm(), return_rep)
 
 
-def _kraus_from_choi(choi: qutip.Qobj, d_out: int, d_in: int, tol: float = 1e-15) -> List[qutip.Qobj]:
+def _kraus_from_choi(choi: qt.Qobj, d_out: int, d_in: int, tol: float = 1e-15) -> List[qt.Qobj]:
     """
     Convert a Choi matrix to a list of Kraus operators using eigen-decomposition.
     This is the slow step for large dimensions.
@@ -264,12 +308,12 @@ def _kraus_from_choi(choi: qutip.Qobj, d_out: int, d_in: int, tol: float = 1e-15
     choi = (choi + choi.dag()) / 2  # enforce Hermiticity
     w, v = np.linalg.eigh(choi.full())
 
-    Ks: List[qutip.Qobj] = []
+    Ks: List[qt.Qobj] = []
     for k in range(len(w)):
         if w[k] <= tol:
             continue
         vec = np.sqrt(w[k]) * v[:, k]
         Kmat = vec.reshape((d_out, d_in), order="F")  # column-stacking
-        Ks.append(qutip.Qobj(Kmat, dims=[[d_out], [d_in]]))
+        Ks.append(qt.Qobj(Kmat, dims=[[d_out], [d_in]]))
 
     return Ks

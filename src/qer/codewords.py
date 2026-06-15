@@ -1,5 +1,10 @@
-"""
-Permutation-invariant (PI) code constructors + PIQS reduced-space (block-diagonal) embeddings.
+"""Permutation-invariant code constructors and PIQS embeddings.
+
+This module builds the logical codewords used by the package. Most constructors
+first create logical kets in the fully symmetric Dicke top block, whose
+dimension is ``N + 1`` for ``N`` qubits. The matching ``*_piqs`` helpers embed
+those top-block states into the PIQS reduced space by padding the lower spin
+blocks with zeros.
 """
 
 from __future__ import annotations
@@ -12,9 +17,18 @@ import qutip
 
 def piqs_block_dims(N: int) -> List[int]:
     """
-    Return PIQS reduced-space block dimensions for N qubits:
-      [N+1, N-1, N-3, ..., (1 if N even else 2)]
-    in descending order (top block first).
+    Return the PIQS reduced-space block dimensions.
+
+    Parameters
+    ----------
+    N : int
+        Number of physical qubits.
+
+    Returns
+    -------
+    list[int]
+        Block dimensions in descending order, starting with the symmetric
+        block ``N + 1``.
     """
     if N < 1:
         raise ValueError("N must be >= 1")
@@ -23,14 +37,38 @@ def piqs_block_dims(N: int) -> List[int]:
 
 
 def piqs_total_dim(N: int) -> int:
-    """Total dimension of PIQS reduced space for N qubits."""
+    """
+    Return the total dimension of the PIQS reduced space.
+
+    Parameters
+    ----------
+    N : int
+        Number of physical qubits.
+
+    Returns
+    -------
+    int
+        Sum of all PIQS block dimensions.
+    """
     return sum(piqs_block_dims(N))
 
 
 def embed_into_piqs_reduced(ket_top: np.ndarray, N: int) -> np.ndarray:
     """
-    Embed a ket from the top block (dim N+1) into PIQS reduced space (dim sum_J (2J+1)).
-    Output is column vector shape (D, 1), with the top block filled and rest zeros.
+    Embed a top-block ket into the PIQS reduced space.
+
+    Parameters
+    ----------
+    ket_top : numpy.ndarray
+        Ket in the symmetric top block with length ``N + 1``.
+    N : int
+        Number of physical qubits.
+
+    Returns
+    -------
+    numpy.ndarray
+        Column vector with shape ``(D, 1)``, where ``D`` is the PIQS reduced
+        dimension and lower blocks are filled with zeros.
     """
     ket_top = np.asarray(ket_top, dtype=complex).reshape(-1)
     if ket_top.size != N + 1:
@@ -44,7 +82,21 @@ def embed_into_piqs_reduced(ket_top: np.ndarray, N: int) -> np.ndarray:
 
 def embed_rho_into_piqs_reduced(rho_top: np.ndarray, N: int) -> np.ndarray:
     """
-    Embed a density matrix supported on the top block (shape (N+1,N+1)) into PIQS reduced space (D,D).
+    Embed a top-block density matrix into the PIQS reduced space.
+
+    Parameters
+    ----------
+    rho_top : numpy.ndarray
+        Density matrix supported on the symmetric top block, with shape
+        ``(N + 1, N + 1)``.
+    N : int
+        Number of physical qubits.
+
+    Returns
+    -------
+    numpy.ndarray
+        Density matrix with shape ``(D, D)``, where ``D`` is the PIQS reduced
+        dimension and lower blocks are filled with zeros.
     """
     rho_top = np.asarray(rho_top, dtype=complex)
     if rho_top.shape != (N + 1, N + 1):
@@ -58,7 +110,17 @@ def embed_rho_into_piqs_reduced(rho_top: np.ndarray, N: int) -> np.ndarray:
 
 def code_maximally_mixed_on_codespace(ket0: np.ndarray, ket1: np.ndarray) -> np.ndarray:
     """
-    rho = 1/2 (|0_L><0_L| + |1_L><1_L|)
+    Return the maximally mixed state on a two-dimensional codespace.
+
+    Parameters
+    ----------
+    ket0, ket1 : numpy.ndarray
+        Logical code kets spanning the codespace.
+
+    Returns
+    -------
+    numpy.ndarray
+        Density matrix ``0.5 * (|0_L><0_L| + |1_L><1_L|)``.
     """
     ket0 = np.asarray(ket0, dtype=complex).reshape(-1)
     ket1 = np.asarray(ket1, dtype=complex).reshape(-1)
@@ -75,8 +137,19 @@ def code_maximally_mixed_on_codespace(ket0: np.ndarray, ket1: np.ndarray) -> np.
 
 def as_qutip_objects(rho: np.ndarray, ket0: np.ndarray, ket1: np.ndarray):
     """
-    Convenience wrapper to return qutip.Qobj objects.
-    qutip is imported lazily so this file can be used without qutip installed.
+    Convert code arrays into QuTiP objects.
+
+    Parameters
+    ----------
+    rho : numpy.ndarray
+        Density matrix array.
+    ket0, ket1 : numpy.ndarray
+        Logical ket arrays.
+
+    Returns
+    -------
+    tuple[qutip.Qobj, qutip.Qobj, qutip.Qobj]
+        ``(rho, ket0, ket1)`` as QuTiP objects with compatible dims.
     """
     import qutip  # type: ignore
 
@@ -95,8 +168,22 @@ def symmetric_code_to_piqs_reduced(
     return_qutip: bool = True,
 ):
     """
-    Generic embedding for any code defined in the top (fully symmetric) block.
-    Returns (rho, l0, l1) either as qutip.Qobj or raw numpy arrays.
+    Embed any symmetric-top-block code into the PIQS reduced space.
+
+    Parameters
+    ----------
+    ket0_top, ket1_top : array-like or qutip.Qobj
+        Logical kets in the symmetric top block with length ``N + 1``.
+    N : int
+        Number of physical qubits.
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return raw NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` in the PIQS reduced space, as either QuTiP
+        objects or NumPy arrays.
     """
     ket0_top = ket0_top.full().ravel() if isinstance(ket0_top, qutip.Qobj) else ket0_top
     ket1_top = ket1_top.full().ravel() if isinstance(ket1_top, qutip.Qobj) else ket1_top
@@ -124,8 +211,19 @@ def symmetric_code_to_piqs_reduced(
 
 def symmetric_basis_state(N: int, w: int) -> np.ndarray:
     """
-    Dicke basis vector |D_w> in the symmetric subspace of N qubits.
-    Vector length N+1, 0-based index w.
+    Return a Dicke basis vector in the symmetric top block.
+
+    Parameters
+    ----------
+    N : int
+        Number of physical qubits.
+    w : int
+        Dicke weight index in ``0, ..., N``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Length ``N + 1`` vector representing ``|D_w^N>``.
     """
     if not (0 <= w <= N):
         raise ValueError(f"Require 0<=w<=N, got w={w}, N={N}")
@@ -135,7 +233,19 @@ def symmetric_basis_state(N: int, w: int) -> np.ndarray:
 
 
 def double_factorial(n: int) -> int:
-    """Compute n!! = n(n-2)(n-4)..."""
+    """
+    Compute a non-negative integer double factorial.
+
+    Parameters
+    ----------
+    n : int
+        Non-negative integer.
+
+    Returns
+    -------
+    int
+        Double factorial ``n!! = n (n - 2) (n - 4) ...``.
+    """
     if n < 0:
         raise ValueError("n must be >= 0")
     if n in (0, 1):
@@ -157,18 +267,26 @@ def gnucode_kets_in_top_block(
     qutip_dims: Optional[list] = None,
 ):
     """
-    Construct (g,n,u) gnu PI-code logical codewords |0_L>, |1_L>
-    directly from Definition (2a): even/odd Dicke-weight superpositions.
+    Construct top-block logical kets for a ``(g, n, u)`` GNU PI code.
 
-    Symmetric-subspace representation: vectors of length (N+1), indexed by Dicke weight w.
-    Here N = g*n*u is the number of physical qubits.
+    Parameters
+    ----------
+    g : int
+        Dicke-weight spacing parameter.
+    n : int
+        Binomial order parameter.
+    u : int
+        Qubit-number scale parameter, with ``N = g * n * u``.
+    return_qutip : bool, default=False
+        If true, return QuTiP kets. If false, return NumPy arrays.
+    qutip_dims : list, optional
+        Custom QuTiP dims used when ``return_qutip`` is true.
 
-    |0_L> ∝ sum_{ell even} sqrt(C(n,ell)) |D_{g ell}>
-    |1_L> ∝ sum_{ell odd } sqrt(C(n,ell)) |D_{g ell}>
-
-    Returns:
-        (psi0, psi1, N)
-    where psi0, psi1 are normalized.
+    Returns
+    -------
+    tuple
+        ``(ket0, ket1, N)`` where the kets are normalized top-block logical
+        states.
     """
     if g <= 0 or n < 0 or u <= 0:
         raise ValueError("Require g>0, n>=0, u>0")
@@ -212,8 +330,23 @@ def gnucode_kets_in_top_block(
 
 def gnucode_piqs(g: int, n: int, u: int, *, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for (g,n,u) gnu code:
-      returns rho, l0, l1 in reduced space.
+    Return the PIQS reduced-space embedding of a ``(g, n, u)`` GNU code.
+
+    Parameters
+    ----------
+    g : int
+        Dicke-weight spacing parameter.
+    n : int
+        Binomial order parameter.
+    u : int
+        Qubit-number scale parameter.
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = gnucode_kets_in_top_block(g, n, u, return_qutip=False)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
@@ -226,9 +359,21 @@ def gnucode_piqs(g: int, n: int, u: int, *, return_qutip: bool = True):
 
 def bgcode_kets_in_top_block(b: int, g: int, return_qutip: bool = False) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    Logical codewords for the (b,g)-PI code in the top block (dim N+1) Dicke basis.
+    Construct top-block logical kets for a ``(b, g)`` PI code.
 
-    Returns: (ket0_top, ket1_top, N) where N = 2b+g
+    Parameters
+    ----------
+    b : int
+        Code parameter controlling Dicke weights.
+    g : int
+        Code parameter controlling Dicke weights.
+    return_qutip : bool, default=False
+        If true, return QuTiP kets. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(ket0_top, ket1_top, N)`` where ``N = 2 * b + g``.
     """
     if b <= 0 or g <= 0:
         raise ValueError("b and g must be positive integers.")
@@ -256,8 +401,21 @@ def bgcode_kets_in_top_block(b: int, g: int, return_qutip: bool = False) -> Tupl
 
 def bgcode_piqs(b: int, g: int, *, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for (b,g)-PI code:
-      returns rho, l0, l1 in reduced space.
+    Return the PIQS reduced-space embedding of a ``(b, g)`` PI code.
+
+    Parameters
+    ----------
+    b : int
+        Code parameter controlling Dicke weights.
+    g : int
+        Code parameter controlling Dicke weights.
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = bgcode_kets_in_top_block(b, g)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
@@ -269,7 +427,21 @@ def bgcode_piqs(b: int, g: int, *, return_qutip: bool = True):
 
 def bgm_gamma_vectors(b: int, g: int, m: int) -> np.ndarray:
     """
-    gamma[k] = γ(b,g,m,k) for k=0..m
+    Return the gamma coefficients for a ``(b, g, m)`` PI code.
+
+    Parameters
+    ----------
+    b : int
+        Code parameter controlling Dicke weights.
+    g : int
+        Code parameter controlling Dicke weights.
+    m : int
+        Code order parameter.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array ``gamma[k]`` for ``k = 0, ..., m``.
     """
     if b <= 0 or g <= 0 or m <= 0:
         raise ValueError("b, g, m must be positive integers.")
@@ -293,9 +465,24 @@ def bgm_gamma_vectors(b: int, g: int, m: int) -> np.ndarray:
 
 def bgmcode_kets_in_top_block(b: int, g: int, m: int, return_qutip: bool = False) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    Logical codewords for the (b,g,m)-PI code in the top block (dim N+1) Dicke basis.
+    Construct top-block logical kets for a ``(b, g, m)`` PI code.
 
-    Returns: (ket0_top, ket1_top, N) where N = 2*b*m + g
+    Parameters
+    ----------
+    b : int
+        Code parameter controlling Dicke weights.
+    g : int
+        Code parameter controlling Dicke weights.
+    m : int
+        Code order parameter, with ``N = 2 * b * m + g``.
+    return_qutip : bool, default=False
+        If true, return QuTiP kets. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(ket0_top, ket1_top, N)`` for the normalized top-block logical
+        states.
     """
     if b <= 0 or g <= 0 or m <= 0:
         raise ValueError("b, g, m must be positive integers.")
@@ -322,8 +509,23 @@ def bgmcode_kets_in_top_block(b: int, g: int, m: int, return_qutip: bool = False
 
 def bgmcode_piqs(b: int, g: int, m: int, *, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for (b,g,m)-PI code:
-      returns rho, l0, l1 in reduced space.
+    Return the PIQS reduced-space embedding of a ``(b, g, m)`` PI code.
+
+    Parameters
+    ----------
+    b : int
+        Code parameter controlling Dicke weights.
+    g : int
+        Code parameter controlling Dicke weights.
+    m : int
+        Code order parameter.
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = bgmcode_kets_in_top_block(b, g, m)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
@@ -337,10 +539,20 @@ def pollatsek_ruskai_7_kets_in_top_block(
     return_qutip: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    7-qubit Pollatsek-Ruskai PI code in the top Dicke block.
+    Construct top-block kets for the 7-qubit Pollatsek-Ruskai PI code.
 
-    The sign parameter epsilon must be +1 or -1. Returns
-    (ket0_top, ket1_top, N=7).
+    Parameters
+    ----------
+    epsilon : int, default=1
+        Sign parameter, either ``+1`` or ``-1``.
+    return_qutip : bool, default=False
+        If true, return QuTiP kets. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(ket0_top, ket1_top, 7)`` for the normalized top-block logical
+        states.
     """
     if epsilon not in (-1, 1):
         raise ValueError("epsilon must be +1 or -1.")
@@ -372,7 +584,19 @@ def pollatsek_ruskai_7_kets_in_top_block(
 
 def pollatsek_ruskai_7_piqs(epsilon: int = 1, *, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for the 7-qubit Pollatsek-Ruskai PI code.
+    Return the PIQS embedding of the 7-qubit Pollatsek-Ruskai PI code.
+
+    Parameters
+    ----------
+    epsilon : int, default=1
+        Sign parameter, either ``+1`` or ``-1``.
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = pollatsek_ruskai_7_kets_in_top_block(epsilon=epsilon)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
@@ -385,9 +609,18 @@ def kubischta_teixeira_11_kets_in_top_block(
     return_qutip: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    11-qubit Kubischta-Teixeira PI code in the top Dicke block.
+    Construct top-block kets for the 11-qubit Kubischta-Teixeira PI code.
 
-    Returns (ket0_top, ket1_top, N=11).
+    Parameters
+    ----------
+    return_qutip : bool, default=False
+        If true, return QuTiP kets. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(ket0_top, ket1_top, 11)`` for the normalized top-block logical
+        states.
     """
     N = 11
     ket0_top = (
@@ -411,7 +644,17 @@ def kubischta_teixeira_11_kets_in_top_block(
 
 def kubischta_teixeira_11_piqs(*, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for the 11-qubit Kubischta-Teixeira PI code.
+    Return the PIQS embedding of the 11-qubit Kubischta-Teixeira PI code.
+
+    Parameters
+    ----------
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = kubischta_teixeira_11_kets_in_top_block()
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
@@ -421,8 +664,18 @@ def kubischta_teixeira_11_piqs(*, return_qutip: bool = True):
 # ===============================================================
 def seven_qubit_code_kets_in_top_block(return_qutip: bool = False) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    7-qubit PI code in the top block (dim 8).
-    Returns (ket0_top, ket1_top, N=7).
+    Construct top-block kets for the 7-qubit PI code.
+
+    Parameters
+    ----------
+    return_qutip : bool, default=False
+        If true, return QuTiP kets. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(ket0_top, ket1_top, 7)`` for the normalized top-block logical
+        states.
     """
     N = 7
     ket0_top = np.sqrt(3/10)*symmetric_basis_state(N,0) + np.sqrt(7/10)*symmetric_basis_state(N,5)
@@ -435,8 +688,17 @@ def seven_qubit_code_kets_in_top_block(return_qutip: bool = False) -> Tuple[np.n
 
 def seven_qubit_piqs(*, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for 7-qubit PI code:
-      N=7, blocks [8,6,4,2] total 20.
+    Return the PIQS embedding of the 7-qubit PI code.
+
+    Parameters
+    ----------
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = seven_qubit_code_kets_in_top_block(return_qutip=return_qutip)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
@@ -447,8 +709,17 @@ def seven_qubit_piqs(*, return_qutip: bool = True):
 
 def gross_13_kets_in_top_block(phi: float = 0.0) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    Gross code for N=13 qubits in top Dicke block (dim 14), fully in QuTiP objects.
-    Returns (ket0_top_numpy, ket1_top_numpy, N).
+    Construct top-block kets for the Gross 13-qubit code.
+
+    Parameters
+    ----------
+    phi : float, default=0.0
+        Relative phase used in the Gross 13-qubit construction.
+
+    Returns
+    -------
+    tuple[qutip.Qobj, qutip.Qobj, int]
+        ``(ket0_top, ket1_top, 13)`` as normalized QuTiP kets in the top block.
     """
     N = 13
     j = N / 2
@@ -467,6 +738,19 @@ def gross_13_kets_in_top_block(phi: float = 0.0) -> Tuple[np.ndarray, np.ndarray
     # QuTiP spin basis ordering: m = j, j-1, ..., -j  (descending)
     # index = j - m
     def ket_jm(m: float) -> qutip.Qobj:
+        """
+        Return a QuTiP spin-basis ket for a magnetic quantum number.
+
+        Parameters
+        ----------
+        m : float
+            Magnetic quantum number in the ``j = N / 2`` spin basis.
+
+        Returns
+        -------
+        qutip.Qobj
+            Basis ket in QuTiP's descending-``m`` ordering.
+        """
         idx = int(round(j - m))  # 0-based index in QuTiP ordering
         return qutip.basis(dim, idx)
 
@@ -501,8 +785,19 @@ def gross_13_kets_in_top_block(phi: float = 0.0) -> Tuple[np.ndarray, np.ndarray
 
 def gross_13_piqs(phi: float = 0.0, *, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for Gross 13-qubit code:
-      N=13, blocks [14,12,10,8,6,4,2] total 56.
+    Return the PIQS embedding of the Gross 13-qubit code.
+
+    Parameters
+    ----------
+    phi : float, default=0.0
+        Relative phase used in the Gross 13-qubit construction.
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = gross_13_kets_in_top_block(phi)
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)
@@ -514,8 +809,18 @@ def gross_13_piqs(phi: float = 0.0, *, return_qutip: bool = True):
 
 def gross_17_kets_in_top_block() -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    Gross code for N=17 qubits in top block (dim 18).
-    Returns (ket0_top, ket1_top, N=17).
+    Construct top-block kets for the Gross 17-qubit code.
+
+    Parameters
+    ----------
+    None
+        This constructor has no user-supplied parameters.
+
+    Returns
+    -------
+    tuple[numpy.ndarray, numpy.ndarray, int]
+        ``(ket0_top, ket1_top, 17)`` for the normalized top-block logical
+        states.
     """
     N = 17
     s = math.sqrt
@@ -578,8 +883,17 @@ def gross_17_kets_in_top_block() -> Tuple[np.ndarray, np.ndarray, int]:
 
 def gross_17_piqs(*, return_qutip: bool = True):
     """
-    PIQS reduced-space embedding for Gross 17-qubit code:
-      N=17, blocks [18,16,14,12,10,8,6,4,2] total 90.
+    Return the PIQS embedding of the Gross 17-qubit code.
+
+    Parameters
+    ----------
+    return_qutip : bool, default=True
+        If true, return QuTiP objects. If false, return NumPy arrays.
+
+    Returns
+    -------
+    tuple
+        ``(rho, ket0, ket1)`` embedded in the PIQS reduced space.
     """
     ket0_top, ket1_top, N = gross_17_kets_in_top_block()
     return symmetric_code_to_piqs_reduced(ket0_top, ket1_top, N, return_qutip=return_qutip)

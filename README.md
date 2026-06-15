@@ -1,28 +1,23 @@
 # QER
 
 Quantum error recovery utilities and reproducibility material for the
-permutation-invariant code calculations in the accompanying paper.
+permutation-invariant code numerical calculations in the accompanying paper.
 
-This repository contains the installable Python package, generated
-pulse-sequence data, notebooks, helper scripts, and final plotting outputs used
-during the project.
+This repository contains the installable Python package, curated final GPG 
+pulse-sequence data, clean examples, helper scripts, and release sanity tests.
 
 ## Repository Map
 
 - `src/qer/`: public Python package. New code should import from `qer.*`.
 - `examples/`: clean notebooks for first-time users.
-- `scripts/`: long-running helper scripts used to generate or refine
-  GPG pulse-search data. These scripts are cache-driven and require explicit
-  `--cache-path` inputs.
-- `notebooks/stale/`: archived exploratory notebooks kept for provenance.
+- `scripts/`: advanced cache-driven helper for detuned noisy-GPG pulse search;
+  it works with five-parameter pulses and requires explicit `--cache-path`
+  inputs.
 - `tests/`: lightweight release sanity checks.
 - `docs/`: usage notes, data notes, and release checklist.
 - `datas/final_gpg_pulses/`: final detuned GPG pulse data used for the paper
   figure; pulse rows contain `alpha`, `beta`, `gamma`, `kappa`, and
   `detuning`.
-- `plots/final_paper/`: paper-ready figure exports.
-- `plots/other_plots/`: archived exploratory and intermediate plot outputs.
-- `other/`: supplementary source files that are not part of the Python package.
 
 ## Python Installation
 
@@ -34,6 +29,16 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e .
 ```
+
+To run the example notebooks, install the optional notebook extra:
+
+```bash
+python -m pip install -e ".[examples]"
+```
+
+If a notebook says a dependency such as `pandas` is missing, the notebook kernel
+is using a different Python environment from the one where `qer` was installed.
+Switch the notebook kernel to the environment used for the install command.
 
 The package targets Python 3.10+ and was developed with Python 3.12.
 
@@ -52,14 +57,15 @@ from qer.noisemodel import noisemodel
 from qer.optimisation import optimise
 
 rho, logical0, logical1 = bgmcode_piqs(b=3, g=3, m=1)
+num_qubits = 2*b*m + g
 noise = noisemodel(
-    "global symmetric amplitude damping",
-    num_qubits=9,
-    gamma=1e-3,
-    dt=1.0,
-    return_rep="choi",
+    "global symmetric amplitude damping", # type of noise
+    num_qubits=num_qubits, #number of physical qubits in the system
+    gamma=1e-3, # noise strength
+    dt=1.0, # time un til we want to evolve the system
+    return_rep="choi", # returns the superoperator S = e^{i*dt*L}, which is also called "choi" where L is Lindbladian 
 )
-fidelity = optimise(logical0, logical1, noise, solver="scs")
+fidelity = optimise(logical0, logical1, noise, solver="scs") #optimum fidelity using semidefinite optimisation via "scs" solver
 print(fidelity)
 ```
 
@@ -86,7 +92,7 @@ python -m unittest discover -s tests
 Some tests skip automatically if optional scientific dependencies are not
 installed in the active environment.
 
-## Data And Outputs
+## Data
 
 The public data payload is `datas/final_gpg_pulses/`. It contains the selected
 detuned noisy-GPG pulse sequences used for the paper figure. Each pulse has the
@@ -94,10 +100,6 @@ five parameters `alpha`, `beta`, `gamma`, `kappa`, and `detuning`.
 
 Older sweep caches, intermediate amplitude-damping result tables, and exploratory
 pulse-search outputs are intentionally not part of this release branch.
-
-The `plots/final_paper/` directory contains the stable paper-facing figure
-exports. Exploratory and intermediate plots are retained under
-`plots/other_plots/` so they do not crowd the public-facing figure set.
 
 ## Release Notes
 

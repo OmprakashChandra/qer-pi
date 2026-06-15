@@ -1,4 +1,4 @@
-# Data And Figures
+# Data
 
 The public data payload is `datas/final_gpg_pulses/`.
 
@@ -10,8 +10,6 @@ It contains:
   `beta`, `gamma`, `kappa`, and `detuning`.
 - `best_metrics.csv` and `best_metrics.json`: selected-point metadata.
 
-The public figure exports are in `plots/final_paper/`.
-
-Exploratory plots are retained in `plots/other_plots/`. Older sweep caches,
-scratch files, and intermediate amplitude-damping tables are not part of the
+Older sweep caches, scratch files, intermediate amplitude-damping tables,
+figures, and exploratory notebooks are intentionally not part of this lean
 release branch.

@@ -24,4 +24,13 @@ setup(
         "qutip",
         "scipy",
     ],
+    extras_require={
+        "dev": [
+            "pytest",
+        ],
+        "examples": [
+            "ipykernel",
+            "notebook",
+        ],
+    },
 )

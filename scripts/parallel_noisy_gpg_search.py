@@ -116,7 +116,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         action="append",
         default=[],
-        help="Optional cache to reuse existing pulse sequences from. May be repeated.",
+        help="Optional detuned five-parameter pulse cache to warm-start from. May be repeated.",
     )
     parser.add_argument(
         "--reference-cache",
@@ -246,7 +246,7 @@ def bgm_problem():
     return num_qubits, rho, (ket0, ket1), exact_global_ad, approximate_petz_recovery
 
 
-def load_noiseless_prior(
+def load_detuned_prior(
     p: float,
     prior_cache_paths: tuple[Path, ...],
 ) -> dict[tuple[str, int], Any]:
@@ -262,6 +262,14 @@ def load_noiseless_prior(
         )
         for point in points:
             for key, sequence in point["pulse_sequences"].items():
+                try:
+                    sequence = gpgs.coerce_detuned_pulse_params(sequence)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"{path} contains a non-detuned prior sequence for {key!r}. "
+                        "Detuned warm starts must have five columns: "
+                        "alpha, beta, gamma, kappa, detuning."
+                    ) from exc
                 prior.setdefault(key, sequence)
     return prior
 
@@ -342,7 +350,7 @@ def run_worker(config: dict[str, Any], attempt: int, seed_offset: int) -> dict[s
             cache = pickle.load(f)
         key = config["target_cache_key"]
         old_point = cache["points"][key]
-        prior = load_noiseless_prior(
+        prior = load_detuned_prior(
             config["p"],
             tuple(Path(path) for path in config["prior_cache_paths"]),
         )
@@ -428,7 +436,7 @@ def refresh_csv_and_plot(
     best_rows: dict[tuple[float, float], dict[str, Any]] = {}
     for key, point in cache.get("points", {}).items():
         metrics = point.get("metrics", {})
-        if metrics.get("gpg_mode") not in (None, "detuned"):
+        if metrics.get("gpg_mode") != "detuned":
             continue
         p = float(metrics.get("p", float("nan")))
         cooperativity = float(metrics.get("GPG cooperativity", float("nan")))
