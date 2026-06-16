@@ -1,6 +1,6 @@
 # Data
 
-The public data payload is `datas/final_gpg_pulses/`.
+The data payload is `datas/final_gpg_pulses/`.
 
 It contains:
 
@@ -10,6 +10,4 @@ It contains:
   `beta`, `gamma`, `kappa`, and `detuning`.
 - `best_metrics.csv` and `best_metrics.json`: selected-point metadata.
 
-Older sweep caches, scratch files, intermediate amplitude-damping tables,
-figures, and exploratory notebooks are intentionally not part of this lean
-release branch.
+The bundle is limited to curated pulse sequences and summary metrics.

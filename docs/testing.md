@@ -1,6 +1,6 @@
 # Testing
 
-Run the release sanity checks with:
+Run the test suite with:
 
 ```bash
 python -m unittest discover -s tests

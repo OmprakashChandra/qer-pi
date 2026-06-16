@@ -3,18 +3,18 @@
 Quantum error recovery utilities and reproducibility material for the
 permutation-invariant code numerical calculations in the accompanying paper.
 
-This repository contains the installable Python package, curated final GPG 
-pulse-sequence data, clean examples, helper scripts, and release sanity tests.
+This repository contains the installable Python package, curated GPG
+pulse-sequence data, clean examples, helper scripts, and lightweight tests.
 
 ## Repository Map
 
-- `src/qer/`: public Python package. New code should import from `qer.*`.
+- `src/qer/`: Python package. New code should import from `qer.*`.
 - `examples/`: clean notebooks for first-time users.
 - `scripts/`: advanced cache-driven helper for detuned noisy-GPG pulse search;
   it works with five-parameter pulses and requires explicit `--cache-path`
   inputs.
-- `tests/`: lightweight release sanity checks.
-- `docs/`: usage notes, data notes, and release checklist.
+- `tests/`: lightweight checks for package behavior and bundled data.
+- `docs/`: usage, testing, and data notes.
 - `datas/final_gpg_pulses/`: final detuned GPG pulse data used for the paper
   figure; pulse rows contain `alpha`, `beta`, `gamma`, `kappa`, and
   `detuning`.
@@ -59,13 +59,13 @@ from qer.optimisation import optimise
 rho, logical0, logical1 = bgmcode_piqs(b=3, g=3, m=1)
 num_qubits = 2*b*m + g
 noise = noisemodel(
-    "global symmetric amplitude damping", # type of noise
-    num_qubits=num_qubits, #number of physical qubits in the system
-    gamma=1e-3, # noise strength
-    dt=1.0, # time un til we want to evolve the system
-    return_rep="choi", # returns the superoperator S = e^{i*dt*L}, which is also called "choi" where L is Lindbladian 
+    "global symmetric amplitude damping",
+    num_qubits=num_qubits,
+    gamma=1e-3,
+    dt=1.0,
+    return_rep="choi",
 )
-fidelity = optimise(logical0, logical1, noise, solver="scs") #optimum fidelity using semidefinite optimisation via "scs" solver
+fidelity = optimise(logical0, logical1, noise, solver="scs")
 print(fidelity)
 ```
 
@@ -94,17 +94,8 @@ installed in the active environment.
 
 ## Data
 
-The public data payload is `datas/final_gpg_pulses/`. It contains the selected
-detuned noisy-GPG pulse sequences used for the paper figure. Each pulse has the
-five parameters `alpha`, `beta`, `gamma`, `kappa`, and `detuning`.
+The data payload is `datas/final_gpg_pulses/`. It contains the selected detuned
+noisy-GPG pulse sequences used for the paper figure. Each pulse has the five
+parameters `alpha`, `beta`, `gamma`, `kappa`, and `detuning`.
 
-Older sweep caches, intermediate amplitude-damping result tables, and exploratory
-pulse-search outputs are intentionally not part of this release branch.
-
-## Release Notes
-
-This branch is being prepared as the public release branch. Before final public
-release, add a project license and a paper citation once the final citation text
-is available.
-
-See `docs/release_checklist.md` for the remaining release checks.
+The bundle is limited to curated pulse sequences and summary metrics.
