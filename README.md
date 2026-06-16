@@ -23,7 +23,6 @@ From the repository root:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
@@ -32,12 +31,6 @@ To run the example notebooks, install the optional notebook extra:
 ```bash
 python -m pip install -e ".[examples]"
 ```
-
-If a notebook says a dependency such as `pandas` is missing, the notebook kernel
-is using a different Python environment from the one where `qer` was installed.
-Switch the notebook kernel to the environment used for the install command.
-
-The package targets Python 3.10+ and was developed with Python 3.12.
 
 ## Examples
 
