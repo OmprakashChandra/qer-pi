@@ -23,6 +23,7 @@ From the repository root:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
 python -m pip install -e .
 ```
 
@@ -64,4 +65,6 @@ print(fidelity)
 local MOSEK installation and license. If you use MOSEK, set
 `MOSEKLM_LICENSE_FILE` in your shell to your local license path.
 
+## License
 
+This project is released under the MIT License. See `LICENSE`.
