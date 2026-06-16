@@ -47,6 +47,7 @@ The package targets Python 3.10+ and was developed with Python 3.12.
 Clean starting-point notebooks are in `examples/`:
 
 - `examples/basic_recovery.ipynb`
+- `examples/finding_optimal_pulses.ipynb`
 - `examples/load_final_gpg_pulses.ipynb`
 
 ## Quick Start
