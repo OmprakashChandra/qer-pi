@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
+authors = [
+    { name = "Omprakash Chandra" },
+]
 keywords = [
     "quantum-error-correction",
     "quantum-error-recovery",
@@ -41,6 +44,10 @@ examples = [
     "ipykernel",
     "notebook",
 ]
+
+[project.urls]
+Repository = "https://github.com/OmprakashChandra/qer-pi"
+Issues = "https://github.com/OmprakashChandra/qer-pi/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

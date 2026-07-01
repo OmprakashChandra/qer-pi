@@ -16,6 +16,7 @@ import os
 import pickle
 import shutil
 import sys
+import tempfile
 import time
 import traceback
 from dataclasses import dataclass
@@ -30,7 +31,7 @@ REPO_ROOT = next(
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 os.environ.setdefault("MPLBACKEND", "Agg")
-os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/mpl")
+os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "qer-mpl"))
 Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
 
 
