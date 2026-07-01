@@ -6,10 +6,9 @@ This repository accompanies:
 
 Authors: Omprakash Chandra, Yingkai Ouyang, Gopikrishnan Muraleedharan, and Gavin K. Brennen.
 
-Paper draft date: July 1, 2026.
 
 The paper studies quantum error recovery for permutation-invariant quantum
-codes under correlated amplitude-damping noise, introduces CAD4 and CAD9 PI
+codes under correlated amplitude-damping noise, introduces new family of PI codes called CAD codes giving explicit construction of 4 qubit CAD4 and 9 qubit CAD9 PI
 codes, and compiles recovery maps using geometric phase gate primitives.
 
 Repository map for the paper:
