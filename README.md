@@ -1,9 +1,9 @@
-# QER
+# qer-pi: Quantum Error Recovery for Permutation-Invariant Codes
 
 Quantum error recovery utilities and reproducibility material for the
 permutation-invariant code numerical calculations in the accompanying paper.
 
-This repository lets you play with the variety of Permutation-Invariant quantum codes (PI codes) including gnu, bg, bgm, 7-qubit Pollatsek-Ruskai, Gross code, ... under global and local symmetric noise. In the paper, we have focused on amplitude damping noise. However, we also have support for depolarizing noise. For more look at `src/qer/noisemodel.py`. For building the Lindbladians, we have used Permutation-Invariant Quantum Solver (PIQS) (link). Once your state goes through the noise model, you can run optimal error recovery implemented in ``src/qer/optimisation.py`, and construct the recovery circuit (with compilation done under the hood) and find the pulse sequences using geometric phase gate sequences to build the primitives involved in the recovery circuit implemented in `src/qer/gpgs.py`. 
+This repository lets you play with the variety of Permutation-Invariant quantum codes (PI codes) including gnu, bg, bgm, 7-qubit Pollatsek-Ruskai, Gross code, ... under global and local symmetric noise. In the paper, we have focused on amplitude damping noise. However, we also have support for depolarizing noise. For more look at `src/qer/noisemodel.py`. For building the Lindbladians, we have used [Permutation-Invariant Quantum Solver (PIQS)](https://qutip.readthedocs.io/en/latest/apidoc/piqs.html). Once your state goes through the noise model, you can run optimal error recovery implemented in ``src/qer/optimisation.py`, and construct the recovery circuit (with compilation done under the hood) and find the pulse sequences using geometric phase gate sequences to build the primitives involved in the recovery circuit implemented in `src/qer/gpgs.py`. 
 
 ## Repository Map
 
@@ -53,8 +53,9 @@ from qer.codewords import bgmcode_piqs
 from qer.noisemodel import noisemodel
 from qer.optimisation import optimise
 
-rho, logical0, logical1 = bgmcode_piqs(b=3, g=3, m=1)
-num_qubits = 2*b*m + g
+b, g, m = 3, 3, 1
+rho, logical0, logical1 = bgmcode_piqs(b=b, g=g, m=m)
+num_qubits = 2 * b * m + g
 noise = noisemodel(
     "global symmetric amplitude damping",
     num_qubits=num_qubits,
