@@ -5,6 +5,13 @@ permutation-invariant code numerical calculations in the accompanying paper.
 
 This repository lets you play with the variety of Permutation-Invariant quantum codes (PI codes) including gnu, bg, bgm, 7-qubit Pollatsek-Ruskai, Gross code, ... under global and local symmetric noise. In the paper, we have focused on amplitude damping noise. However, we also have support for depolarizing noise. For more look at `src/qer/noisemodel.py`. For building the Lindbladians, we have used [Permutation-Invariant Quantum Solver (PIQS)](https://qutip.readthedocs.io/en/latest/apidoc/piqs.html). Once your state goes through the noise model, you can run optimal error recovery implemented in ``src/qer/optimisation.py`, and construct the recovery circuit (with compilation done under the hood) and find the pulse sequences using geometric phase gate sequences to build the primitives involved in the recovery circuit implemented in `src/qer/gpgs.py`. 
 
+## Associated Paper
+
+This repository accompanies **Recovery Algorithm for Correlated Errors in
+Permutation-Invariant Quantum Codes** by Omprakash Chandra, Yingkai Ouyang,
+Gopikrishnan Muraleedharan, and Gavin K. Brennen. See `docs/paper.md` for the
+paper-specific repository map and `CITATION.cff` for citation metadata.
+
 ## Repository Map
 
 - `src/qer/`: Python package. New code should import from `qer.*`.
