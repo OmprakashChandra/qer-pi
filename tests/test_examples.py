@@ -11,7 +11,7 @@ NOTEBOOK_DIRS = [
 
 
 class ExampleNotebookTests(unittest.TestCase):
-    def test_example_notebooks_are_valid_json_and_unexecuted(self):
+    def test_example_notebooks_are_valid_json_and_executed_cleanly(self):
         notebooks = [
             path
             for notebook_dir in NOTEBOOK_DIRS
@@ -24,10 +24,18 @@ class ExampleNotebookTests(unittest.TestCase):
                 notebook = json.loads(path.read_text())
                 self.assertEqual(notebook["nbformat"], 4)
                 self.assertIn("cells", notebook)
+                output_count = 0
                 for cell in notebook["cells"]:
                     if cell["cell_type"] == "code":
-                        self.assertIsNone(cell.get("execution_count"))
-                        self.assertEqual(cell.get("outputs", []), [])
+                        self.assertIsNotNone(cell.get("execution_count"))
+                        for output in cell.get("outputs", []):
+                            self.assertNotEqual(output.get("output_type"), "error")
+                            self.assertFalse(
+                                output.get("output_type") == "stream"
+                                and output.get("name") == "stderr"
+                            )
+                            output_count += 1
+                self.assertGreater(output_count, 0)
 
 
 if __name__ == "__main__":
