@@ -11,5 +11,3 @@ python -m pip install -e ".[examples]"
 - `finding_optimal_pulses.ipynb`: build the BGM code, apply exact collective
   amplitude damping, decompose the recovery into GPG synthesis targets, and
   optimize detuned pulse sequences for Dicke-space state preparation.
-- `load_final_gpg_pulses.ipynb`: inspect the final detuned GPG pulse data used
-  for the paper figure.

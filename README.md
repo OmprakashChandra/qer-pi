@@ -9,6 +9,8 @@ This repository lets you play with the variety of Permutation-Invariant quantum 
 
 - `src/qer/`: Python package. New code should import from `qer.*`.
 - `examples/`: clean notebooks for first-time users.
+- `paper_plots/`: notebooks for reproducing plots and data summaries used in
+  the paper.
 - `scripts/`: advanced cache-driven helper for detuned noisy-GPG pulse search; requires explicit `--cache-path` inputs.
 - `tests/`: lightweight checks for package behavior and bundled data.
 - `docs/`: usage, testing, and data notes.
@@ -39,7 +41,10 @@ Clean starting-point notebooks are in `examples/`:
 
 - `examples/basic_recovery.ipynb`
 - `examples/finding_optimal_pulses.ipynb`
-- `examples/load_final_gpg_pulses.ipynb`
+
+Paper-plot notebooks are in `paper_plots/`:
+
+- `paper_plots/load_final_gpg_pulses.ipynb`
 
 ## Quick Start
 

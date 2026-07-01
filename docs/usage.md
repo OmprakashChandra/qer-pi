@@ -29,4 +29,6 @@ use `solver="mosek"` only when it is installed and licensed locally.
 For examples, start with:
 
 - `examples/basic_recovery.ipynb`
-- `examples/load_final_gpg_pulses.ipynb`
+- `examples/finding_optimal_pulses.ipynb`
+
+Paper-plot reproduction notebooks live in `paper_plots/`.
