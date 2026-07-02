@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this repository, please cite the associated paper."
+message: "If you use this repository, please cite the repository for now. Paper citation details will be updated after public release."
 title: "qer-pi: Quantum error recovery utilities for permutation-invariant quantum codes"
 version: "0.1.0"
 date-released: "2026-07-01"

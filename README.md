@@ -15,6 +15,10 @@ Permutation-Invariant Quantum Codes** by Omprakash Chandra, Yingkai Ouyang,
 Gopikrishnan Muraleedharan, and Gavin K. Brennen. See `docs/paper.md` for the
 paper-specific repository map and `CITATION.cff` for citation metadata.
 
+The paper is coming soon. Until the public paper link is available, please cite
+this repository directly; the citation metadata will be updated with the paper
+identifier after release.
+
 ## Repository Map
 
 - `src/qer/`: Python package. New code should import from `qer.*`.
