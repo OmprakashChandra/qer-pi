@@ -10,29 +10,3 @@ authors:
   - family-names: Chandra
     given-names: Omprakash
     affiliation: "School of Mathematical and Physical Sciences, Macquarie University"
-  - family-names: Ouyang
-    given-names: Yingkai
-    affiliation: "School of Mathematical and Physical Sciences, University of Sheffield"
-  - family-names: Muraleedharan
-    given-names: Gopikrishnan
-    affiliation: "BTQ Technologies"
-  - family-names: Brennen
-    given-names: Gavin K.
-    affiliation: "School of Mathematical and Physical Sciences, Macquarie University; BTQ Technologies"
-preferred-citation:
-  type: article
-  title: "Recovery Algorithm for Correlated Errors in Permutation-Invariant Quantum Codes"
-  authors:
-    - family-names: Chandra
-      given-names: Omprakash
-      affiliation: "School of Mathematical and Physical Sciences, Macquarie University"
-    - family-names: Ouyang
-      given-names: Yingkai
-      affiliation: "School of Mathematical and Physical Sciences, University of Sheffield"
-    - family-names: Muraleedharan
-      given-names: Gopikrishnan
-      affiliation: "BTQ Technologies"
-    - family-names: Brennen
-      given-names: Gavin K.
-      affiliation: "School of Mathematical and Physical Sciences, Macquarie University; BTQ Technologies"
-  date-released: "2026-07-01"
