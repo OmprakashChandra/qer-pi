@@ -1,10 +1,11 @@
 cff-version: 1.2.0
-message: "If you use this repository, please cite the repository for now. Paper citation details will be updated after public release."
+message: "If you use this repository before the paper is public, please cite the Zenodo archived release. Paper citation details will be updated after public release."
 title: "qer-pi: Quantum error recovery utilities for permutation-invariant quantum codes"
 version: "0.1.0"
-date-released: "2026-07-01"
+date-released: "2026-07-02"
 license: MIT
 repository-code: "https://github.com/OmprakashChandra/qer-pi"
+doi: "10.5281/zenodo.21126476"
 authors:
   - family-names: Chandra
     given-names: Omprakash

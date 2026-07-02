@@ -1,5 +1,7 @@
 # Quantum Error Recovery for Permutation-Invariant Codes (qer-pi)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21126476.svg)](https://doi.org/10.5281/zenodo.21126476)
+
 This repository implements quantum error recovery protocols for permutation-invariant quantum codes (PI codes). The main workflow is to choose a PI code, apply a physical noise model, use semidefinite programming (SDP) to compute an optimized recovery map, and then compile the recovery map into a coherent recovery circuit.
 
 The repository supports a range of short-length PI codes, including GNU codes, binomial-like PI codes, bg/bgm codes, the 7-qubit Pollatsek--Ruskai code, Gross code, and the CAD PI codes introduced in our paper. We study their performance under both global symmetric and local symmetric noise. In the paper, we focus mainly on amplitude-damping (AD) noise, but the code also supports depolarizing noise and can be extended to custom error models. See `src/qer/noisemodel.py` for the available noise channels and how to define new ones.
@@ -13,11 +15,13 @@ In short, this repository provides tools to benchmark PI codes under structured 
 This repository accompanies **Recovery Algorithm for Correlated Errors in
 Permutation-Invariant Quantum Codes** by Omprakash Chandra, Yingkai Ouyang,
 Gopikrishnan Muraleedharan, and Gavin K. Brennen. See `docs/paper.md` for the
-paper-specific repository map and `CITATION.cff` for citation metadata.
+paper-specific repository map and `CITATION.cff` for citation metadata. The
+v0.1.0 repository release is archived on Zenodo:
+<https://doi.org/10.5281/zenodo.21126476>.
 
 The paper is coming soon. Until the public paper link is available, please cite
-this repository directly; the citation metadata will be updated with the paper
-identifier after release.
+the archived repository release directly; the citation metadata will be updated
+with the paper identifier after release.
 
 ## Repository Map
 
