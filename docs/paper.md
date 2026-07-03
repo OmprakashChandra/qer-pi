@@ -4,7 +4,8 @@ This repository accompanies:
 
 **Recovery Algorithm for Correlated Errors in Permutation-Invariant Quantum Codes**
 
-Authors: Omprakash Chandra, Yingkai Ouyang, Gopikrishnan Muraleedharan, and Gavin K. Brennen.
+Authors: Omprakash Chandra, Yingkai Ouyang, Gopikrishnan Muraleedharan, and Gavin K. Brennen. 
+Paper link: https://arxiv.org/pdf/2607.02346
 
 The v0.1.0 repository release is archived on Zenodo:
 <https://doi.org/10.5281/zenodo.21126476>.
