@@ -19,9 +19,7 @@ paper-specific repository map and `CITATION.cff` for citation metadata. The
 v0.1.0 repository release is archived on Zenodo:
 <https://doi.org/10.5281/zenodo.21126476>.
 
-The paper is coming soon. Until the public paper link is available, please cite
-the archived repository release directly; the citation metadata will be updated
-with the paper identifier after release.
+Here is the link for the paper: https://arxiv.org/pdf/2607.02346
 
 ## Repository Map
 
